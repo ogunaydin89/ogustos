@@ -46,7 +46,7 @@ case "$cmd" in
             apt update && apt full-upgrade -y "$@" && apt autoremove --purge -y
         fi
         ;;
-    in|install)
+    in|install|get)
         need_root "$cmd" "$@"
         "$FRONTEND" install --no-install-recommends "$@"
         ;;

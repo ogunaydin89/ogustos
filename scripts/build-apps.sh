@@ -2,9 +2,10 @@
 # ==============================================================================
 # build-apps.sh — Packages custom ogustOS & School Pardus applications (.deb)
 #   1. emerge-pdf          -> pool/apps/emerge-pdf_1.0.0_all.deb
-#   2. viewnior            -> pool/apps/viewnior_1.8-1ogustos1_amd64.deb
+#   2. meb-sertifika       -> pool/apps/meb-sertifika_1.0.0_all.deb (Provides: fatihca, meb-ser)
 #   3. libreoffice-fresh   -> pool/apps/libreoffice-fresh_25.8-1ogustos1_all.deb
-#   4. proton-ge-custom    -> pool/main/proton-ge-custom_<ver>_amd64.deb
+#   4. viewnior            -> pool/apps/viewnior_1.8-1ogustos1_amd64.deb
+#   5. proton-ge-custom    -> pool/main/proton-ge-custom_<ver>_amd64.deb
 # ==============================================================================
 set -euo pipefail
 
@@ -76,7 +77,83 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
-# 2. Package libreoffice-fresh (KDE/Qt6 Native Meta-Package)
+# 2. Package MEB FATIH Root Certificate (meb-sertifika_1.0.0_all.deb)
+#    Optional on-demand install via: ogust in meb-sertifika (or fatihca / meb-ser)
+#    Installs into OpenSSL, Google Chrome NSSDB (~/.pki/nssdb), and Python/Node env
+# ------------------------------------------------------------------------------
+if [[ -f "${REPO_ROOT}/certs/MEB_FATIH_CA.crt" ]]; then
+    MEB_STAGE="${REPO_ROOT}/dist/stage/meb-sertifika"
+    rm -rf "$MEB_STAGE"
+    mkdir -p "${MEB_STAGE}/DEBIAN"
+    mkdir -p "${MEB_STAGE}/usr/local/share/ca-certificates"
+    mkdir -p "${MEB_STAGE}/etc/environment.d"
+
+    install -m 0644 "${REPO_ROOT}/certs/MEB_FATIH_CA.crt" "${MEB_STAGE}/usr/local/share/ca-certificates/MEB_FATIH_CA.crt"
+
+    cat > "${MEB_STAGE}/etc/environment.d/99-meb-fatih-ca.conf" <<'EOF'
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/MEB_FATIH_CA.crt
+EOF
+
+    cat > "${MEB_STAGE}/DEBIAN/control" <<'EOF'
+Package: meb-sertifika
+Version: 1.0.0
+Section: net
+Priority: optional
+Architecture: all
+Provides: fatihca, meb-ser
+Depends: ca-certificates, libnss3-tools
+Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
+Description: MEB FATIH Network Root CA Certificate (CN=fatihca, valid to 2036)
+ Optional system-wide installer for computers connected to MEB FATIH networks.
+ Automatically registers the certificate in system OpenSSL, Google Chrome/Chromium
+ NSS databases (~/.pki/nssdb), and Python/Node/curl TLS environments.
+EOF
+
+    cat > "${MEB_STAGE}/DEBIAN/postinst" <<'EOF'
+#!/usr/bin/env bash
+set -e
+CERT="/usr/local/share/ca-certificates/MEB_FATIH_CA.crt"
+update-ca-certificates
+
+if command -v certutil >/dev/null 2>&1; then
+    for dir in /etc/skel /root /home/*; do
+        [[ -d "$dir" ]] || continue
+        nssdir="${dir}/.pki/nssdb"
+        mkdir -p "$nssdir"
+        if [[ ! -f "${nssdir}/cert9.db" ]]; then
+            certutil -d "sql:${nssdir}" -N --empty-password || true
+        fi
+        certutil -d "sql:${nssdir}" -D -n "MEB FATIH CA" 2>/dev/null || true
+        certutil -d "sql:${nssdir}" -A -t "CT,C,C" -n "MEB FATIH CA" -i "$CERT" || true
+        if [[ "$dir" == /home/* ]]; then
+            usr="$(stat -c '%U:%G' "$dir")"
+            chown -R "$usr" "${dir}/.pki" || true
+        fi
+    done
+fi
+EOF
+
+    cat > "${MEB_STAGE}/DEBIAN/postrm" <<'EOF'
+#!/usr/bin/env bash
+set -e
+update-ca-certificates --fresh >/dev/null 2>&1 || true
+if command -v certutil >/dev/null 2>&1; then
+    for nssdir in /etc/skel/.pki/nssdb /root/.pki/nssdb /home/*/.pki/nssdb; do
+        [[ -d "$nssdir" ]] && certutil -d "sql:${nssdir}" -D -n "MEB FATIH CA" 2>/dev/null || true
+    done
+fi
+EOF
+
+    chmod 0755 "${MEB_STAGE}/DEBIAN/postinst" "${MEB_STAGE}/DEBIAN/postrm"
+    dpkg-deb --build --root-owner-group "$MEB_STAGE" "${OUT_DIR}/pool/apps/meb-sertifika_1.0.0_all.deb"
+    echo "[::] Packaged ${OUT_DIR}/pool/apps/meb-sertifika_1.0.0_all.deb"
+fi
+
+# ------------------------------------------------------------------------------
+# 3. Package libreoffice-fresh (KDE/Qt6 Native Meta-Package)
 # ------------------------------------------------------------------------------
 LO_STAGE="${REPO_ROOT}/dist/stage/libreoffice-fresh"
 rm -rf "$LO_STAGE"
@@ -95,7 +172,7 @@ dpkg-deb --build --root-owner-group "$LO_STAGE" "${OUT_DIR}/pool/apps/libreoffic
 echo "[::] Packaged ${OUT_DIR}/pool/apps/libreoffice-fresh_25.8.0-1ogustos1_all.deb"
 
 # ------------------------------------------------------------------------------
-# 3. Compile & Package Viewnior 1.8 (Removed from Debian Testing; hosted in apps)
+# 4. Compile & Package Viewnior 1.8 (Removed from Debian Testing; hosted in apps)
 # ------------------------------------------------------------------------------
 if [[ "${BUILD_VIEWNIOR:-0}" == "1" ]]; then
     echo "[::] Compiling Viewnior 1.8 from source (portable x86_64)..."
@@ -123,7 +200,7 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
-# 4. Package Proton-GE Custom (/usr/share/steam/compatibilitytools.d/)
+# 5. Package Proton-GE Custom (/usr/share/steam/compatibilitytools.d/)
 # ------------------------------------------------------------------------------
 if [[ "${BUILD_PROTON_GE:-0}" == "1" ]]; then
     GE_TAG="$(curl -fsSL https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')"
