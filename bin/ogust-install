@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ogust-install — Pure-Text 6-Prompt Offline SquashFS Installer for ogustOS KDE
+# Runs directly on tty1 at boot (timeout 0). No Live GUI, no menus.
+# ==============================================================================
+set -euo pipefail
+
+SQUASHFS_IMAGE="/run/live/medium/live/filesystem.squashfs"
+TARGET_MNT="/mnt"
+MOUNT_OPTS="rw,noatime,commit=60,discard"
+KERNEL_CMDLINE="amd_pstate=active amdgpu.dcdebugmask=0x10 amdgpu.gpu_recovery=1 amdgpu.ppfeaturemask=0xffffffff transparent_hugepage=madvise mitigations=off pcie_aspm.policy=performance rw quiet"
+
+clear
+cat <<'EOF'
+ogustOS KDE
+────────────────────────────────────────────────────────────────
+EOF
+
+# ------------------------------------------------------------------------------
+# 1. Select Installation Target Drive (Installer USB automatically excluded)
+# ------------------------------------------------------------------------------
+LIVE_DEV="$(findmnt -n -o SOURCE /run/live/medium 2>/dev/null | sed 's/[0-9]*$//;s/p[0-9]*$//' || true)"
+mapfile -t DISKS < <(lsblk -d -n -p -o NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {print $1" "$2" "$3" "$4}' | grep -v "^${LIVE_DEV:-/dev/null} " || true)
+
+if [[ ${#DISKS[@]} -eq 0 ]]; then
+    echo "ERROR: No target storage drives detected."
+    read -r -p "Press [ENTER] to power off..." _
+    systemctl poweroff -i
+fi
+
+echo "Select installation target drive:"
+echo ""
+for i in "${!DISKS[@]}"; do
+    idx=$((i + 1))
+    disk_name="$(awk '{print $1}' <<<"${DISKS[$i]}")"
+    disk_size="$(awk '{print $2}' <<<"${DISKS[$i]}")"
+    disk_model="$(cut -d' ' -f3- <<<"${DISKS[$i]}" | sed 's/ disk$//')"
+    printf "  %d) %-12s %-8s %s\n" "$idx" "${disk_name#/dev/}" "$disk_size" "$disk_model"
+done
+echo ""
+
+while true; do
+    read -r -p "Target drive [1-${#DISKS[@]}]: " DRIVE_IDX
+    if [[ "$DRIVE_IDX" =~ ^[0-9]+$ ]] && (( DRIVE_IDX >= 1 && DRIVE_IDX <= ${#DISKS[@]} )); then
+        TARGET_DISK="$(awk '{print $1}' <<<"${DISKS[$((DRIVE_IDX - 1))]}")"
+        break
+    fi
+done
+
+# Helper for nvme0n1p1 vs sda1 partition naming
+part_name() {
+    local disk="$1" num="$2"
+    if [[ "$disk" =~ [0-9]$ ]]; then
+        echo "${disk}p${num}"
+    else
+        echo "${disk}${num}"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 2. Partition Mode (Strictly 2 Options: Full Drive vs Install Alongside)
+# ------------------------------------------------------------------------------
+echo ""
+echo "Select installation mode for ${TARGET_DISK}:"
+echo "  1) Use full drive (wipes ${TARGET_DISK}: 512M EFI + ext4 root)"
+echo "  2) Install alongside existing OS (reuses EFI, creates ext4 root in free space)"
+echo ""
+while true; do
+    read -r -p "Mode [1-2]: " PART_MODE
+    [[ "$PART_MODE" == "1" || "$PART_MODE" == "2" ]] && break
+done
+
+# ------------------------------------------------------------------------------
+# 3. Location (Timezone)
+# ------------------------------------------------------------------------------
+echo ""
+echo "Select location (timezone):"
+echo "  1) Europe/Istanbul"
+echo "  2) Europe/Berlin"
+echo "  3) Europe/London"
+echo "  4) UTC"
+echo "  5) Custom (Region/City)"
+echo ""
+read -r -p "Location [1-5, default=1]: " TZ_CHOICE
+case "${TZ_CHOICE:-1}" in
+    1) TIMEZONE="Europe/Istanbul" ;;
+    2) TIMEZONE="Europe/Berlin" ;;
+    3) TIMEZONE="Europe/London" ;;
+    4) TIMEZONE="UTC" ;;
+    5) read -r -p "Enter Region/City (e.g. Europe/Istanbul): " TIMEZONE ;;
+    *) TIMEZONE="Europe/Istanbul" ;;
+esac
+
+# ------------------------------------------------------------------------------
+# 4. Keyboard Layout
+# ------------------------------------------------------------------------------
+echo ""
+echo "Select keyboard layout:"
+echo "  1) trq (Turkish Q)"
+echo "  2) us  (English US)"
+echo ""
+read -r -p "Keyboard [1-2, default=1]: " KB_CHOICE
+case "${KB_CHOICE:-1}" in
+    1) KEYMAP_CONSOLE="trq"; KEYMAP_XKB="tr" ;;
+    2) KEYMAP_CONSOLE="us";  KEYMAP_XKB="us" ;;
+    *) KEYMAP_CONSOLE="trq"; KEYMAP_XKB="tr" ;;
+esac
+loadkeys "$KEYMAP_CONSOLE" 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 5. System Locale
+# ------------------------------------------------------------------------------
+echo ""
+echo "Select system locale:"
+echo "  1) en_US.UTF-8 (English UI + 24h/Metric/A4 regional format)"
+echo "  2) tr_TR.UTF-8 (Turkish UI)"
+echo ""
+read -r -p "Locale [1-2, default=1]: " LOC_CHOICE
+case "${LOC_CHOICE:-1}" in
+    1) MAIN_LOCALE="en_US.UTF-8" ;;
+    2) MAIN_LOCALE="tr_TR.UTF-8" ;;
+    *) MAIN_LOCALE="en_US.UTF-8" ;;
+esac
+
+# ------------------------------------------------------------------------------
+# 6. Username & Password
+# ------------------------------------------------------------------------------
+echo ""
+while true; do
+    read -r -p "Username: " USERNAME
+    [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] && break
+    echo "Invalid username (use lowercase letters/numbers)."
+done
+
+while true; do
+    read -r -s -p "Password for ${USERNAME}: " PASS1; echo ""
+    read -r -s -p "Confirm password: " PASS2; echo ""
+    [[ -n "$PASS1" && "$PASS1" == "$PASS2" ]] && break
+    echo "Passwords do not match. Try again."
+done
+
+# ==============================================================================
+# Pure-Text Installation Stream
+# ==============================================================================
+echo ""
+echo "────────────────────────────────────────────────────────────────"
+START_TIME=$SECONDS
+
+DUALBOOT_WINDOWS=0
+
+if [[ "$PART_MODE" == "1" ]]; then
+    echo "[::] Partitioning ${TARGET_DISK} (GPT: 512M EFI + 100% ext4)..."
+    wipefs -a "$TARGET_DISK"
+    sfdisk "$TARGET_DISK" <<EOF
+label: gpt
+size=512M, type=U, name="EFI System Partition"
+type=L, name="ogustOS"
+EOF
+    partprobe "$TARGET_DISK"
+    udevadm settle
+    EFI_PART="$(part_name "$TARGET_DISK" 1)"
+    ROOT_PART="$(part_name "$TARGET_DISK" 2)"
+    echo "[::] Formatting EFI partition ${EFI_PART} (FAT32)..."
+    mkfs.vfat -F 32 -n EFI "$EFI_PART"
+else
+    echo "[::] Scanning ${TARGET_DISK} for existing EFI System Partition..."
+    EFI_PART="$(lsblk -lnpo NAME,PARTTYPE "$TARGET_DISK" | awk 'tolower($2)=="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $1; exit}')"
+    if [[ -z "$EFI_PART" ]]; then
+        echo "ERROR: No existing EFI System Partition found on ${TARGET_DISK} for alongside install."
+        exit 1
+    fi
+    echo "[::] Creating new ext4 partition in largest free space on ${TARGET_DISK}..."
+    NEXT_NUM="$(($(lsblk -lnpo NAME "$TARGET_DISK" | wc -l)))"
+    echo ", +, L" | sfdisk --append "$TARGET_DISK"
+    partprobe "$TARGET_DISK"
+    udevadm settle
+    ROOT_PART="$(part_name "$TARGET_DISK" "$NEXT_NUM")"
+fi
+
+echo "[::] Formatting root partition ${ROOT_PART} as ext4..."
+mkfs.ext4 -F -L ogustOS "$ROOT_PART"
+
+echo "[::] Mounting ${ROOT_PART} to ${TARGET_MNT} (${MOUNT_OPTS})..."
+mount -o "$MOUNT_OPTS" "$ROOT_PART" "$TARGET_MNT"
+mkdir -p "${TARGET_MNT}/boot"
+mount "$EFI_PART" "${TARGET_MNT}/boot"
+
+if [[ -f "${TARGET_MNT}/boot/EFI/Microsoft/Boot/bootmgfw.efi" ]]; then
+    DUALBOOT_WINDOWS=1
+    echo "[::] Detected Windows Boot Manager on ${EFI_PART} (preserving dual-boot & syncing RTC)..."
+fi
+
+echo "[::] Extracting ogustOS SquashFS image to ${TARGET_MNT}..."
+unsquashfs -f -d "$TARGET_MNT" "$SQUASHFS_IMAGE"
+
+echo "[::] Generating /etc/fstab..."
+ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
+EFI_UUID="$(blkid -s UUID -o value "$EFI_PART")"
+cat > "${TARGET_MNT}/etc/fstab" <<EOF
+# <file system>                           <mount point>  <type>  <options>                        <dump> <pass>
+UUID=${ROOT_UUID}                         /              ext4    ${MOUNT_OPTS}                    0      1
+UUID=${EFI_UUID}                          /boot          vfat    umask=0077                       0      2
+EOF
+
+echo "[::] Configuring timezone (${TIMEZONE}), locale (${MAIN_LOCALE}), and keyboard (${KEYMAP_CONSOLE})..."
+ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${TARGET_MNT}/etc/localtime"
+echo "$TIMEZONE" > "${TARGET_MNT}/etc/timezone"
+
+if (( DUALBOOT_WINDOWS == 1 )); then
+    cat > "${TARGET_MNT}/etc/adjtime" <<EOF
+0.0 0 0.0
+0
+LOCAL
+EOF
+fi
+
+cat > "${TARGET_MNT}/etc/locale.gen" <<EOF
+en_US.UTF-8 UTF-8
+tr_TR.UTF-8 UTF-8
+EOF
+
+if [[ "$MAIN_LOCALE" == "en_US.UTF-8" && "$TIMEZONE" == "Europe/Istanbul" ]]; then
+    cat > "${TARGET_MNT}/etc/default/locale" <<EOF
+LANG=en_US.UTF-8
+LC_TIME=tr_TR.UTF-8
+LC_PAPER=tr_TR.UTF-8
+LC_MEASUREMENT=tr_TR.UTF-8
+EOF
+else
+    echo "LANG=${MAIN_LOCALE}" > "${TARGET_MNT}/etc/default/locale"
+fi
+
+echo "KEYMAP=${KEYMAP_CONSOLE}" > "${TARGET_MNT}/etc/vconsole.conf"
+echo "ogustos" > "${TARGET_MNT}/etc/hostname"
+
+# Configure KDE Wayland keyboard layout in /etc/skel
+mkdir -p "${TARGET_MNT}/etc/skel/.config"
+cat > "${TARGET_MNT}/etc/skel/.config/kxkbrc" <<EOF
+[Layout]
+LayoutList=${KEYMAP_XKB}
+Use=true
+EOF
+
+echo "[::] Creating user '${USERNAME}' and installing systemd-boot..."
+for dir in dev dev/pts proc sys sys/firmware/efi/efivars run; do
+    mount --bind "/$dir" "${TARGET_MNT}/$dir"
+done
+
+chroot "$TARGET_MNT" /bin/bash -e <<EOF
+locale-gen
+useradd -m -k /etc/skel -s /bin/zsh -G sudo,video,render,audio,input,lp,adm "${USERNAME}"
+echo "${USERNAME}:${PASS1}" | chpasswd
+passwd -l root
+
+bootctl --path=/boot install
+EOF
+
+KVER="$(ls -1 "${TARGET_MNT}/boot" | sed -n 's/^vmlinuz-//p' | sort -V | tail -n 1)"
+mkdir -p "${TARGET_MNT}/boot/loader/entries"
+cat > "${TARGET_MNT}/boot/loader/loader.conf" <<EOF
+default ogustos.conf
+timeout 0
+console-mode max
+editor no
+EOF
+
+cat > "${TARGET_MNT}/boot/loader/entries/ogustos.conf" <<EOF
+title   ogustOS KDE (${KVER})
+linux   /vmlinuz-${KVER}
+initrd  /initrd.img-${KVER}
+options root=UUID=${ROOT_UUID} ${KERNEL_CMDLINE}
+EOF
+
+echo "[::] Syncing filesystems and unmounting..."
+sync
+for dir in run sys/firmware/efi/efivars sys proc dev/pts dev; do
+    umount -lf "${TARGET_MNT}/$dir" 2>/dev/null || true
+done
+umount "${TARGET_MNT}/boot"
+umount "${TARGET_MNT}"
+
+ELAPSED=$((SECONDS - START_TIME))
+echo "────────────────────────────────────────────────────────────────"
+echo "ogustOS installation completed in ${ELAPSED}s."
+echo "Remove the installation drive and press [ENTER] to reboot."
+read -r _
+systemctl reboot -i

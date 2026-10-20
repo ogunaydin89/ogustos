@@ -1,0 +1,5 @@
+# Tier 1: ogustOS Official Repository (Absolute Authority)
+# Always wins (1001) for Kernel 7.3.x-ogustOS, Mesa, linux-firmware, KDE Plasma 6.8+, and ogustOS apps.
+Package: *
+Pin: release o=ogustOS
+Pin-Priority: 1001

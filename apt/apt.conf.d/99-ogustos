@@ -1,0 +1,11 @@
+// ogustOS Zero-Bloat APT Configuration
+APT::Install-Recommends "false";
+APT::Install-Suggests "false";
+APT::AutoRemove::RecommendsImportant "false";
+APT::AutoRemove::SuggestsImportant "false";
+Acquire::Queue-Mode "access";
+Acquire::Retries "3";
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+};

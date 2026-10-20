@@ -1,0 +1,6 @@
+Types: deb deb-src
+URIs: https://ogunaydin89.github.io/ogustos-repo
+Suites: stable
+Components: main apps
+Architectures: amd64 i386
+Signed-By: /usr/share/keyrings/ogustos-archive-keyring.gpg

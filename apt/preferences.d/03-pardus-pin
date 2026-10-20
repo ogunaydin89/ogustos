@@ -1,0 +1,14 @@
+# Tier 3: Pardus 25 Repository (Selective Institutional & Turkish Hardware Support)
+Package: *
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: 400
+
+# Allow explicit installation and upgrades of Pardus/TUBITak & e-Imza packages
+Package: pardus-* akis* e-imza* kamusm-*
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: 900
+
+# Hard-block Pardus from hijacking /etc/os-release, bootloader, or desktop branding
+Package: base-files desktop-base lsb-release grub* plymouth* sddm* plasma-desktop*plasma-workspace*
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: -1
