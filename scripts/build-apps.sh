@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # build-apps.sh — Packages custom ogustOS & School Pardus applications (.deb)
-# Places universal packages in pool/apps/ (works on ogustOS AND Pardus 23/25!)
+#   1. emerge-pdf          -> pool/apps/emerge-pdf_1.0.0_all.deb
+#   2. viewnior            -> pool/apps/viewnior_1.8-1ogustos1_amd64.deb
+#   3. libreoffice-fresh   -> pool/apps/libreoffice-fresh_25.8-1ogustos1_all.deb
+#   4. proton-ge-custom    -> pool/main/proton-ge-custom_<ver>_amd64.deb
 # ==============================================================================
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${REPO_ROOT}/dist/repo"
+BUILD_TMP="${BUILD_TMP:-/var/tmp/ogustos-apps-build}"
 EMERGE_PDF_SRC="${EMERGE_PDF_SRC:-/home/helin/Code/emerge-pdf}"
 
-mkdir -p "${OUT_DIR}/pool/apps" "${OUT_DIR}/pool/main"
+mkdir -p "${OUT_DIR}/pool/apps" "${OUT_DIR}/pool/main" "$BUILD_TMP"
 
 # ------------------------------------------------------------------------------
 # 1. Package EmergePDF (emerge-pdf_1.0.0_all.deb)
@@ -69,4 +73,79 @@ EOF
 
     dpkg-deb --build --root-owner-group "$STAGE" "${OUT_DIR}/pool/apps/emerge-pdf_1.0.0_all.deb"
     echo "[::] Packaged ${OUT_DIR}/pool/apps/emerge-pdf_1.0.0_all.deb"
+fi
+
+# ------------------------------------------------------------------------------
+# 2. Package libreoffice-fresh (KDE/Qt6 Native Meta-Package)
+# ------------------------------------------------------------------------------
+LO_STAGE="${REPO_ROOT}/dist/stage/libreoffice-fresh"
+rm -rf "$LO_STAGE"
+mkdir -p "${LO_STAGE}/DEBIAN"
+cat > "${LO_STAGE}/DEBIAN/control" <<'EOF'
+Package: libreoffice-fresh
+Version: 25.8.0-1ogustos1
+Section: editors
+Priority: optional
+Architecture: all
+Depends: libreoffice, libreoffice-kf6 | libreoffice-qt6, libreoffice-l10n-tr
+Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
+Description: Latest LibreOffice Fresh suite with KDE Plasma 6 (KF6/Qt6) integration
+EOF
+dpkg-deb --build --root-owner-group "$LO_STAGE" "${OUT_DIR}/pool/apps/libreoffice-fresh_25.8.0-1ogustos1_all.deb"
+echo "[::] Packaged ${OUT_DIR}/pool/apps/libreoffice-fresh_25.8.0-1ogustos1_all.deb"
+
+# ------------------------------------------------------------------------------
+# 3. Compile & Package Viewnior 1.8 (Removed from Debian Testing; hosted in apps)
+# ------------------------------------------------------------------------------
+if [[ "${BUILD_VIEWNIOR:-0}" == "1" ]]; then
+    echo "[::] Compiling Viewnior 1.8 from source (portable x86_64)..."
+    VN_DIR="${BUILD_TMP}/viewnior-src"
+    VN_STAGE="${REPO_ROOT}/dist/stage/viewnior"
+    rm -rf "$VN_DIR" "$VN_STAGE"
+    git clone --depth=1 -b viewnior-1.8 https://github.com/hellosiyan/Viewnior.git "$VN_DIR"
+    CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=mold" \
+        meson setup "${VN_DIR}/build" "$VN_DIR" --prefix=/usr --buildtype=release
+    ninja -C "${VN_DIR}/build"
+    DESTDIR="$VN_STAGE" ninja -C "${VN_DIR}/build" install
+    mkdir -p "${VN_STAGE}/DEBIAN"
+    cat > "${VN_STAGE}/DEBIAN/control" <<'EOF'
+Package: viewnior
+Version: 1.8-1ogustos1
+Section: graphics
+Priority: optional
+Architecture: amd64
+Depends: libc6, libglib2.0-0, libgtk2.0-0, libexiv2-28 | libexiv2-27
+Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
+Description: Fast, simple, and elegant image viewer for ogustOS and Pardus
+EOF
+    dpkg-deb --build --root-owner-group "$VN_STAGE" "${OUT_DIR}/pool/apps/viewnior_1.8-1ogustos1_amd64.deb"
+    echo "[::] Packaged ${OUT_DIR}/pool/apps/viewnior_1.8-1ogustos1_amd64.deb"
+fi
+
+# ------------------------------------------------------------------------------
+# 4. Package Proton-GE Custom (/usr/share/steam/compatibilitytools.d/)
+# ------------------------------------------------------------------------------
+if [[ "${BUILD_PROTON_GE:-0}" == "1" ]]; then
+    GE_TAG="$(curl -fsSL https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')"
+    GE_VER="${GE_TAG#GE-Proton}"
+    GE_TAR="${BUILD_TMP}/${GE_TAG}.tar.gz"
+    if [[ ! -f "$GE_TAR" ]]; then
+        echo "[::] Downloading ${GE_TAG}..."
+        curl -fL "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/${GE_TAG}/${GE_TAG}.tar.gz" -o "$GE_TAR"
+    fi
+    GE_STAGE="${REPO_ROOT}/dist/stage/proton-ge-custom"
+    rm -rf "$GE_STAGE"
+    mkdir -p "${GE_STAGE}/DEBIAN" "${GE_STAGE}/usr/share/steam/compatibilitytools.d"
+    tar -xf "$GE_TAR" -C "${GE_STAGE}/usr/share/steam/compatibilitytools.d"
+    cat > "${GE_STAGE}/DEBIAN/control" <<EOF
+Package: proton-ge-custom
+Version: ${GE_VER}-1ogustos1
+Section: games
+Priority: optional
+Architecture: amd64
+Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
+Description: Custom Proton-GE (${GE_TAG}) pre-installed for Steam on ogustOS
+EOF
+    dpkg-deb -Zxz -z3 --build --root-owner-group "$GE_STAGE" "${OUT_DIR}/pool/main/proton-ge-custom_${GE_VER}-1ogustos1_amd64.deb"
+    echo "[::] Packaged ${OUT_DIR}/pool/main/proton-ge-custom_${GE_VER}-1ogustos1_amd64.deb"
 fi

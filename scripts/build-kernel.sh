@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # build-kernel.sh — Builds linux-image-7.3.x-ogustOS .deb from kernel.org source
-# Applies BORE + BBRv3 patches & compiles with LLVM=1 + Clang ThinLTO (portable x86_64)
+# Applies BORE + BBRv3 patches, compiles with LLVM=1 + Clang ThinLTO (portable
+# x86_64), and generates the linux-image-ogustos / linux-headers-ogustos meta-debs.
 # ==============================================================================
 set -euo pipefail
 
 KVER="${1:-7.3}"
 KMAJOR_MINOR="$(cut -d. -f1-2 <<<"$KVER")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT_POOL="${REPO_ROOT}/dist/repo/pool/main"
 BUILD_DIR="${BUILD_DIR:-/var/tmp/ogustos-kernel-build}"
 JOBS="$(nproc)"
 
 echo "[::] Preparing build directory in ${BUILD_DIR}..."
-mkdir -p "$BUILD_DIR" "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
+mkdir -p "$BUILD_DIR" "$OUT_POOL" "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
 cd "$BUILD_DIR"
 
 TARBALL="linux-${KVER}.tar.xz"
@@ -47,10 +49,37 @@ cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
 scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
 make LLVM=1 LLVM_IAS=1 olddefconfig
 
-echo "[::] Compiling ${KVER}-ogustOS Debian packages (-j${JOBS} with Clang/LLVM + ThinLTO)..."
+KREL="$(make -s kernelrelease)"
+PKGVER="$(make -s kernelversion)-1ogustos1"
+
+echo "[::] Compiling ${KREL} Debian packages (-j${JOBS} with Clang/LLVM + ThinLTO)..."
 make -j"${JOBS}" LLVM=1 LLVM_IAS=1 bindeb-pkg \
     LOCALVERSION="" \
-    KDEB_PKGVERSION="$(make kernelversion)-1ogustos1"
+    KDEB_PKGVERSION="$PKGVER"
 
-echo "[::] Built packages in ${BUILD_DIR}:"
-ls -lh "${BUILD_DIR}"/*.deb
+cp -f "${BUILD_DIR}"/linux-image-${KREL}_*.deb "$OUT_POOL/"
+cp -f "${BUILD_DIR}"/linux-headers-${KREL}_*.deb "$OUT_POOL/"
+
+# ------------------------------------------------------------------------------
+# Build linux-image-ogustos & linux-headers-ogustos Meta-Packages
+# (Ensures 'ogust up' automatically upgrades across 7.3.0 -> 7.3.1 -> 7.4)
+# ------------------------------------------------------------------------------
+for kind in image headers; do
+    META_STAGE="${BUILD_DIR}/meta-linux-${kind}-ogustos"
+    rm -rf "$META_STAGE"
+    mkdir -p "${META_STAGE}/DEBIAN"
+    cat > "${META_STAGE}/DEBIAN/control" <<EOF
+Package: linux-${kind}-ogustos
+Version: ${PKGVER}
+Section: kernel
+Priority: required
+Architecture: amd64
+Depends: linux-${kind}-${KREL} (= ${PKGVER})
+Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
+Description: Latest ogustOS Linux kernel ${kind} meta-package (tracks ${KREL})
+EOF
+    dpkg-deb --build --root-owner-group "$META_STAGE" "${OUT_POOL}/linux-${kind}-ogustos_${PKGVER}_amd64.deb"
+done
+
+echo "[::] Kernel & meta-packages staged in ${OUT_POOL}:"
+ls -lh "${OUT_POOL}"/linux-*.deb
