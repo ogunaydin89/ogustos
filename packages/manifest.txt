@@ -57,6 +57,7 @@ flatpak
 plasma-discover-backend-flatpak
 power-profiles-daemon
 print-manager
+colord-kde
 
 # --- 3. Desktop Applications ---
 google-chrome-stable
@@ -121,12 +122,17 @@ mesa-va-drivers:i386
 vainfo
 vulkan-tools
 steam-installer
+steam-devices
+libdbusmenu-glib4:i386
+libdbusmenu-gtk3-4:i386
+libgtk2.0-0t64:i386
 proton-ge-custom
 
 # --- 6. Audio & Multimedia Codecs ---
 pipewire
 pipewire-pulse
 pipewire-alsa
+pulseaudio-utils
 libspa-0.2-bluetooth
 libasound2-plugins:i386
 wireplumber

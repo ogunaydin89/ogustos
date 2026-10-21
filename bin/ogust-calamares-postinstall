@@ -62,10 +62,14 @@ ff02::2		ip6-allrouters
 EOF
 fi
 mkdir -p "${TARGET_MNT}/etc/sudoers.d"
-if [[ ! -s "${TARGET_MNT}/etc/sudoers.d/10-installer" ]]; then
-    echo "%sudo ALL=(ALL:ALL) ALL" > "${TARGET_MNT}/etc/sudoers.d/10-installer"
+echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "${TARGET_MNT}/etc/sudoers.d/10-installer"
+echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "${TARGET_MNT}/etc/sudoers.d/99-ogustos-nopasswd"
+chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer" "${TARGET_MNT}/etc/sudoers.d/99-ogustos-nopasswd"
+
+# Remove empty [Autologin] /etc/sddm.conf written by Calamares when autologin is disabled
+if [[ -f "${TARGET_MNT}/etc/sddm.conf" ]] && ! grep -qE '^User=[^[:space:]]+' "${TARGET_MNT}/etc/sddm.conf"; then
+    rm -f "${TARGET_MNT}/etc/sddm.conf"
 fi
-chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer"
 
 # Sync keyboard layout selected in Calamares to KDE Plasma Wayland (kxkbrc) and ensure /bin/zsh for new users
 XKB_LAYOUT="tr"
@@ -113,24 +117,58 @@ EOF
 fi
 
 # Run target chroot tasks: enable UFW, purge live/installer packages, build initramfs, install systemd-boot
-chroot "$TARGET_MNT" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 KVER="$KVER" /bin/bash -e <<'EOF'
+chroot "$TARGET_MNT" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 DEBIAN_FRONTEND=noninteractive KVER="$KVER" /bin/bash -e <<'EOF'
 printf "#!/bin/sh\nexit 101\n" > /usr/sbin/policy-rc.d
 chmod 0755 /usr/sbin/policy-rc.d
 
 if command -v ufw >/dev/null 2>&1; then
     ufw default deny incoming || true
     ufw default allow outgoing || true
+    ufw logging off || true
     sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
+    sed -i 's/^LOGLEVEL=.*/LOGLEVEL=off/' /etc/ufw/ufw.conf 2>/dev/null || true
 fi
 
-# Purge live-boot and Calamares installer packages from the installed OS
+# Divert Debian's stock systemd-boot initramfs hook so zz-ogustos-boot is the sole bootloader manager
+if ! dpkg-divert --list /etc/initramfs/post-update.d/systemd-boot | grep -q ogustos-base; then
+    dpkg-divert --package ogustos-base --divert /etc/initramfs/post-update.d/systemd-boot.disabled --rename /etc/initramfs/post-update.d/systemd-boot >/dev/null 2>&1 || true
+fi
+rm -f /etc/initramfs/post-update.d/systemd-boot \
+      /etc/kernel/postinst.d/zz-update-grub \
+      /etc/kernel/postrm.d/zz-update-grub
+mkdir -p /etc/kernel
+echo "layout=other" > /etc/kernel/install.conf
+
+# Purge live-boot and Calamares installer packages (plus any residual 'rc' packages) from the installed OS
 dpkg --purge --no-triggers \
     live-boot live-boot-initramfs-tools \
     calamares os-prober grub-common grub2-common 2>/dev/null || true
-rm -rf /etc/calamares /usr/sbin/policy-rc.d
+rc_pkgs="$(dpkg -l | awk '/^rc/ {print $2}')"
+if [[ -n "$rc_pkgs" ]]; then
+    # shellcheck disable=SC2086
+    dpkg --purge --no-triggers $rc_pkgs 2>/dev/null || true
+fi
+rm -rf /etc/calamares \
+       /usr/bin/ogust-install \
+       /usr/bin/ogust-calamares-postinstall \
+       /usr/local/bin/ogust \
+       /usr/local/bin/ogust-install \
+       /usr/local/bin/ogust-calamares-postinstall \
+       /usr/local/bin/ogust-reboot
+
+# Process all pending dpkg triggers (libc-bin, hicolor-icon-theme, desktop-file-utils, man-db, initramfs-tools)
+dpkg --configure -a
+
+# Copy PAM configs from /usr/lib/pam.d to /etc/pam.d to silence Debian libpam0g warnings
+for pam_svc in systemd-user polkit-1; do
+    if [[ -f "/usr/lib/pam.d/${pam_svc}" && ! -f "/etc/pam.d/${pam_svc}" ]]; then
+        cp -a "/usr/lib/pam.d/${pam_svc}" "/etc/pam.d/${pam_svc}"
+    fi
+done
 
 # Build clean target initramfs once (with config-7.3.0-ogustOS present in /boot)
 update-initramfs -c -k "$KVER"
+dpkg --configure -a
 
 # Install systemd-boot into /boot (or /boot/efi if separate)
 if mountpoint -q /boot/efi; then
@@ -144,6 +182,13 @@ else
     cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/BOOT/BOOTX64.EFI
     cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
 fi
+
+# Pre-warm ldconfig, hwdb, and journal catalog so first boot skips ldconfig.service (0s delay)
+ldconfig
+systemd-hwdb update 2>/dev/null || true
+journalctl --update-catalog 2>/dev/null || true
+rm -f /usr/sbin/policy-rc.d
+touch /etc/.updated /var/.updated
 EOF
 
 # Determine root kernel parameters (UUID, optional LUKS crypttab, optional btrfs subvol)
@@ -191,5 +236,6 @@ initrd  /initrd.img-${KVER}
 options ${BOOT_ROOT_ARGS} ${KERNEL_CMDLINE}
 EOF
 
+touch "${TARGET_MNT}/etc/.updated" "${TARGET_MNT}/var/.updated"
 sync
 echo "[::] ogust-calamares-postinstall completed cleanly."

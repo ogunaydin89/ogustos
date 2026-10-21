@@ -7,8 +7,16 @@ Presentation
 
     Slide {
         Rectangle {
+            x: -2000
+            y: -2000
+            width: 6000
+            height: 6000
+            color: "#1b1e20"
+        }
+
+        Rectangle {
             anchors.fill: parent
-            color: "#121316"
+            color: "#1b1e20"
 
             Column {
                 anchors.centerIn: parent

@@ -40,7 +40,12 @@ cp -a --no-preserve=ownership "${REPO_ROOT}/etc/." "${CHROOT_DIR}/etc/"
 ln -sf ../usr/lib/os-release "${CHROOT_DIR}/etc/os-release"
 cp -a --no-preserve=ownership "${REPO_ROOT}/apt/." "${CHROOT_DIR}/etc/apt/"
 chown -R 0:0 "${CHROOT_DIR}/etc"
-rm -f "${CHROOT_DIR}/etc/apt/sources.list" "${CHROOT_DIR}/etc/resolv.conf"
+chmod 0440 "${CHROOT_DIR}/etc/sudoers.d/99-ogustos-nopasswd" 2>/dev/null || true
+rm -f "${CHROOT_DIR}/etc/apt/sources.list" "${CHROOT_DIR}/etc/resolv.conf" \
+      "${CHROOT_DIR}/usr/local/bin/ogust" \
+      "${CHROOT_DIR}/usr/local/bin/ogust-install" \
+      "${CHROOT_DIR}/usr/local/bin/ogust-calamares-postinstall" \
+      "${CHROOT_DIR}/usr/local/bin/ogust-reboot"
 cp -L /etc/resolv.conf "${CHROOT_DIR}/etc/resolv.conf"
 
 install -D -m 0755 "${REPO_ROOT}/bin/ogust" "${CHROOT_DIR}/usr/bin/ogust"
@@ -127,6 +132,8 @@ xargs -a /tmp/manifest.list apt-get install -y
 apt-get dist-upgrade -y
 apt-get install -y --allow-downgrades viewnior/forky 2>/dev/null || apt-get install -y --allow-downgrades viewnior/testing 2>/dev/null || true
 dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
+        /tmp/ogustos-repo/pool/main/linux-image-*.deb \
+        /tmp/ogustos-repo/pool/main/linux-headers-*.deb \
         /tmp/ogustos-repo/pool/apps/emerge-pdf_*.deb \
         /tmp/ogustos-repo/pool/apps/libreoffice-fresh_*.deb
 apt-get purge -y 'exim4*' 'courier*' 2>/dev/null || true
@@ -135,12 +142,58 @@ userdel -r courier 2>/dev/null || true
 groupdel courier 2>/dev/null || true
 rm -rf /etc/courier /var/lib/courier
 apt-get autoremove -y 2>/dev/null || true
+rc_pkgs="$(dpkg -l | awk '/^rc/ {print $2}')"
+if [[ -n "$rc_pkgs" ]]; then
+    # shellcheck disable=SC2086
+    dpkg --purge $rc_pkgs 2>/dev/null || true
+fi
+rm -f /etc/kernel/postinst.d/zz-update-grub /etc/kernel/postrm.d/zz-update-grub
 
 # Remove duplicate Google Chrome APT source file (keep 04-google-chrome.sources)
 rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
 
 # Re-run ogustos-base postinst so wallpaper & binary symlinks (bat, fd) are applied over kde-full
 /var/lib/dpkg/info/ogustos-base.postinst configure
+
+# Pre-stage official Valve Steam icons, StartupWMClass=steam desktop file, and bootstrapper archive
+if [[ -x /usr/games/steam ]]; then
+    mkdir -p /usr/share/steam /tmp/steam-stage
+    STEAM_TAR="/usr/share/steam/steam_1.0.0.87.tar.gz"
+    if [[ ! -f "$STEAM_TAR" ]]; then
+        curl -fsSL "https://repo.steampowered.com/steam/archive/beta/steam_1.0.0.87.tar.gz" -o "$STEAM_TAR" || true
+    fi
+    if [[ -f "$STEAM_TAR" ]]; then
+        tar -C /tmp/steam-stage -zxf "$STEAM_TAR" steam-launcher/icons steam-launcher/steam.desktop 2>/dev/null || true
+        for i in 16 24 32 48 256; do
+            mkdir -p "/usr/share/icons/hicolor/${i}x${i}/apps"
+            if [[ -f "/tmp/steam-stage/steam-launcher/icons/${i}/steam.png" ]]; then
+                cp -f "/tmp/steam-stage/steam-launcher/icons/${i}/steam.png" "/usr/share/icons/hicolor/${i}x${i}/apps/steam.png"
+            fi
+            if [[ -f "/tmp/steam-stage/steam-launcher/icons/${i}/steam_tray_mono.png" ]]; then
+                cp -f "/tmp/steam-stage/steam-launcher/icons/${i}/steam_tray_mono.png" "/usr/share/icons/hicolor/${i}x${i}/apps/steam_tray_mono.png"
+            fi
+        done
+        mkdir -p /usr/share/icons/breeze/apps/48 /usr/share/icons/breeze-dark/apps/48
+        cp -f /usr/share/icons/hicolor/48x48/apps/steam.png /usr/share/icons/breeze/apps/48/steam.png 2>/dev/null || true
+        cp -f /usr/share/icons/hicolor/48x48/apps/steam.png /usr/share/icons/breeze-dark/apps/48/steam.png 2>/dev/null || true
+        if [[ -f /tmp/steam-stage/steam-launcher/steam.desktop ]]; then
+            sed -e '/^Exec=/ s,/usr/bin/steam,/usr/games/steam,g' \
+                -e 's,^Exec=steam ,Exec=/usr/games/steam ,' \
+                -e '/^Icon=steam/a StartupWMClass=steam' \
+                /tmp/steam-stage/steam-launcher/steam.desktop > /usr/share/applications/steam.desktop
+        fi
+        rm -rf /tmp/steam-stage
+    fi
+    if ! grep -q '^StartupWMClass=steam' /usr/share/applications/steam.desktop 2>/dev/null; then
+        echo "StartupWMClass=steam" >> /usr/share/applications/steam.desktop
+    fi
+    sed -i 's/^Name=Install Steam/Name=Steam/' /usr/share/applications/steam.desktop 2>/dev/null || true
+    # Patch /usr/games/steam to use pre-staged archive without Zenity nag, add StartupWMClass=steam, and copy files instead of symlinks
+    sed -i 's/if \[ -n "\$new_installation" \]; then/if [ -n "$new_installation" ] \&\& [ ! -f "\/usr\/share\/steam\/steam_${version}.tar.gz" ]; then/' /usr/games/steam 2>/dev/null || true
+    sed -i 's|curl -o "\$STEAMDIR/deb-installer/steam_\${version}.tar.gz.\$\$" "\$url"|if [ -f "/usr/share/steam/steam_${version}.tar.gz" ]; then cp -f "/usr/share/steam/steam_${version}.tar.gz" "$STEAMDIR/deb-installer/steam_${version}.tar.gz.$$"; else curl -o "$STEAMDIR/deb-installer/steam_${version}.tar.gz.$$" "$url"; fi|' /usr/games/steam 2>/dev/null || true
+    sed -i "s|-e '/^Actions=/ a Keywords=Games'|-e '/^Actions=/ a Keywords=Games\\\\nStartupWMClass=steam'|" /usr/games/steam 2>/dev/null || true
+    sed -i 's/ln -fns "\$target" "\$dest"/cp -f "$target" "$dest"/g' /usr/games/steam 2>/dev/null || true
+fi
 
 # Pre-build EmergePDF offline virtualenv (with pillow-heif) so first launch is instant & 100% offline
 if [[ -d /usr/share/emerge-pdf ]]; then
@@ -180,8 +233,13 @@ systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
 if command -v ufw >/dev/null 2>&1; then
     ufw default deny incoming || true
     ufw default allow outgoing || true
+    ufw logging off || true
     sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
+    sed -i 's/^LOGLEVEL=.*/LOGLEVEL=off/' /etc/ufw/ufw.conf 2>/dev/null || true
 fi
+
+dpkg --configure -a
+ldconfig
 
 rm -f /usr/sbin/policy-rc.d /tmp/manifest.list
 apt-get clean

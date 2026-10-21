@@ -21,7 +21,7 @@ mkdir -p "${PKG_STAGE}/usr/share/sddm/themes/breeze"
 
 cat > "${PKG_STAGE}/DEBIAN/control" <<'EOF'
 Package: ogustos-base
-Version: 1.0.1-1ogustos1
+Version: 1.0.2-1ogustos1
 Section: admin
 Priority: required
 Architecture: all
@@ -40,6 +40,8 @@ interest-noawait /usr/share/icons/breeze-dark
 EOF
 
 cp -a "${REPO_ROOT}/etc" "${PKG_STAGE}/"
+rm -rf "${PKG_STAGE}/etc/calamares" "${PKG_STAGE}/etc/default/keyboard" "${PKG_STAGE}/etc/default/locale"
+chmod 0440 "${PKG_STAGE}/etc/sudoers.d/99-ogustos-nopasswd"
 cp -a "${REPO_ROOT}/apt/." "${PKG_STAGE}/etc/apt/"
 install -m 0644 "${REPO_ROOT}/etc/os-release" "${PKG_STAGE}/usr/share/ogustos/os-release"
 rm -f "${PKG_STAGE}/etc/os-release"
@@ -53,9 +55,41 @@ fi
 cp -f /usr/share/ogustos/os-release /usr/lib/os-release
 ln -sf ../usr/lib/os-release /etc/os-release
 
+if [[ ! -f /etc/default/locale ]]; then
+    cat > /etc/default/locale <<'LOC'
+LANG=en_GB.UTF-8
+LC_TIME=tr_TR.UTF-8
+LOC
+fi
+if [[ ! -f /etc/default/keyboard ]]; then
+    cat > /etc/default/keyboard <<'KBD'
+XKBMODEL="pc105"
+XKBLAYOUT="tr"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+KBD
+fi
+
+# Divert Debian's stock systemd-boot initramfs hook so zz-ogustos-boot is the sole bootloader manager
+if ! dpkg-divert --list /etc/initramfs/post-update.d/systemd-boot | grep -q ogustos-base; then
+    dpkg-divert --package ogustos-base --divert /etc/initramfs/post-update.d/systemd-boot.disabled --rename /etc/initramfs/post-update.d/systemd-boot >/dev/null 2>&1 || true
+fi
+rm -f /etc/initramfs/post-update.d/systemd-boot
+
+# Remove any untracked /usr/local/bin/ogust* copies so /usr/bin/ogust is never shadowed
+rm -f /usr/local/bin/ogust /usr/local/bin/ogust-install /usr/local/bin/ogust-calamares-postinstall /usr/local/bin/ogust-reboot
+
 # Provide standard 'bat' and 'fd' binary names on Debian
 [[ -x /usr/bin/batcat ]] && ln -sf /usr/bin/batcat /usr/local/bin/bat || true
 [[ -x /usr/bin/fdfind ]] && ln -sf /usr/bin/fdfind /usr/local/bin/fd || true
+
+# Copy PAM configs from /usr/lib/pam.d to /etc/pam.d to silence Debian libpam0g warnings
+for pam_svc in systemd-user polkit-1; do
+    if [[ -f "/usr/lib/pam.d/${pam_svc}" && ! -f "/etc/pam.d/${pam_svc}" ]]; then
+        cp -a "/usr/lib/pam.d/${pam_svc}" "/etc/pam.d/${pam_svc}"
+    fi
+done
 
 # Set ogustOS wallpaper as default across KDE Plasma 6 themes & look-and-feel packages
 for f in /usr/share/plasma/desktoptheme/*/plasmarc; do
@@ -86,13 +120,10 @@ EOF
 chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
 
 install -m 0755 "${REPO_ROOT}/bin/ogust" "${PKG_STAGE}/usr/bin/ogust"
-install -m 0755 "${REPO_ROOT}/bin/ogust-install" "${PKG_STAGE}/usr/bin/ogust-install"
-install -m 0755 "${REPO_ROOT}/bin/ogust-calamares-postinstall" "${PKG_STAGE}/usr/bin/ogust-calamares-postinstall"
 install -m 0755 "${REPO_ROOT}/bin/ogust-reboot" "${PKG_STAGE}/usr/bin/ogust-reboot"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-ascii.txt" "${PKG_STAGE}/usr/share/ogustos/ogustos-ascii.txt"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
-install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/etc/calamares/branding/ogustos/ogustos-logo.svg"
 install -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
 ln -sf ../images/3840x2160.jpg "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 
@@ -116,7 +147,7 @@ mkdir -p "${OUT_DIR}/dists/stable/main/binary-amd64" "${OUT_DIR}/dists/stable/ap
 mkdir -p "${OUT_DIR}/dists/stable/main/binary-i386"  "${OUT_DIR}/dists/stable/apps/binary-i386"
 
 rm -f "${OUT_DIR}/pool/main/ogustos-base_"*.deb
-dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.1-1ogustos1_all.deb"
+dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.2-1ogustos1_all.deb"
 
 # Build custom apps (emerge-pdf, etc.)
 if [[ -x "${REPO_ROOT}/scripts/build-apps.sh" ]]; then

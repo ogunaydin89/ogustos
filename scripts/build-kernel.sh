@@ -48,12 +48,14 @@ else
     rm -f localversion*
 fi
 
-if [[ ! -f .config ]] || ! grep -q '^CONFIG_TCP_CONG_BBR3=y' .config; then
-    echo "[::] Installing Universal Debian base config-7.3-ogustOS and merging ogustos-overrides.config..."
+if [[ ! -f .config ]]; then
+    echo "[::] Installing Universal Debian base config-7.3-ogustOS..."
     cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
-    scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
-    make LLVM=1 LLVM_IAS=1 olddefconfig
 fi
+echo "[::] Merging ogustos-overrides.config and running olddefconfig..."
+scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
+make LLVM=1 LLVM_IAS=1 olddefconfig
+cp -f .config "${REPO_ROOT}/kernel/config-7.3-ogustOS"
 
 # Ensure Debian Package: names are strictly lowercase while keeping uname -r as 7.3.x-ogustOS
 if ! grep -q 'KR_LOWER=' scripts/package/mkdebian; then
@@ -63,6 +65,9 @@ if ! grep -q 'KR_LOWER=' scripts/package/mkdebian; then
     sed -i 's/^Package: linux-image-${KERNELRELEASE}-dbg/Package: linux-image-${KR_LOWER}-dbg/' scripts/package/mkdebian
 fi
 sed -i 's/version=${1#linux-headers-}/version=${KERNELRELEASE}/' scripts/package/builddeb
+if ! grep -q 'linux-headers-\${version}/\.config' scripts/package/builddeb; then
+    sed -i '/ln -s \/usr\/src\/linux-headers-\$version/i \	cp "${KCONFIG_CONFIG}" "${pdir}/usr/src/linux-headers-${version}/.config"' scripts/package/builddeb
+fi
 sed -i 's/-j$(JOBS)/-j8/g; s/-j$(or $(JOBS),8)/-j8/g' scripts/Makefile.btf
 
 KREL="$(make -s kernelrelease)"
