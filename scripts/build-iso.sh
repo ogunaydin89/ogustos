@@ -129,7 +129,11 @@ apt-get install -y --allow-downgrades viewnior/forky 2>/dev/null || apt-get inst
 dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
         /tmp/ogustos-repo/pool/apps/emerge-pdf_*.deb \
         /tmp/ogustos-repo/pool/apps/libreoffice-fresh_*.deb
-apt-get purge -y 'exim4*' 2>/dev/null || true
+apt-get purge -y 'exim4*' 'courier*' 2>/dev/null || true
+dpkg --purge --force-all courier-mta courier-base courier-authdaemon courier-authlib libcourier-authlib0 libcourier-unicode12 2>/dev/null || true
+userdel -r courier 2>/dev/null || true
+groupdel courier 2>/dev/null || true
+rm -rf /etc/courier /var/lib/courier
 apt-get autoremove -y 2>/dev/null || true
 
 # Remove duplicate Google Chrome APT source file (keep 04-google-chrome.sources)

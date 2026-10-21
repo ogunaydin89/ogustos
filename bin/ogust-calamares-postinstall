@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # ogust-calamares-postinstall — Target Post-Installation Hook for Calamares
-# Invoked by Calamares shellprocess module with @@ROOT@@ as $1 before umount.
+# Invoked by Calamares shellprocess module with ${ROOT} as $1 before umount.
 # ==============================================================================
 set -euo pipefail
 
-TARGET_MNT="${1:?ERROR: Target root mountpoint required}"
+TARGET_MNT="${1:-}"
+if [[ -z "$TARGET_MNT" || "$TARGET_MNT" == *"ROOT"* || ! -d "${TARGET_MNT}/lib/modules" ]]; then
+    TARGET_MNT="$(findmnt -rn -o TARGET | grep -E '^/tmp/calamares-root-' | head -n 1 || true)"
+fi
+if [[ -z "$TARGET_MNT" || ! -d "${TARGET_MNT}/lib/modules" ]]; then
+    echo "ERROR: Could not locate Calamares target root mountpoint (arg='$*')" >&2
+    exit 1
+fi
 
 LIVE_MNT="/run/live/medium"
 for p in /run/live/medium/live/vmlinuz /lib/live/mount/medium/live/vmlinuz; do
@@ -35,7 +42,27 @@ done
 rm -f "${TARGET_MNT}/etc/systemd/system/ogust-installer.service" \
       "${TARGET_MNT}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
 
-# Sync keyboard layout selected in Calamares to KDE Plasma Wayland (kxkbrc) and /etc/vconsole.conf
+# Ensure /etc/hostname, /etc/hosts, and /etc/sudoers.d/10-installer are populated
+if [[ ! -s "${TARGET_MNT}/etc/hostname" ]]; then
+    echo "ogustos" > "${TARGET_MNT}/etc/hostname"
+fi
+TARGET_HOSTNAME="$(tr -d '[:space:]' < "${TARGET_MNT}/etc/hostname")"
+if ! grep -q "127.0.1.1" "${TARGET_MNT}/etc/hosts" 2>/dev/null; then
+    cat > "${TARGET_MNT}/etc/hosts" <<EOF
+127.0.0.1	localhost
+127.0.1.1	${TARGET_HOSTNAME}
+::1		localhost ip6-localhost ip6-loopback
+ff02::1		ip6-allnodes
+ff02::2		ip6-allrouters
+EOF
+fi
+mkdir -p "${TARGET_MNT}/etc/sudoers.d"
+if [[ ! -s "${TARGET_MNT}/etc/sudoers.d/10-installer" ]]; then
+    echo "%sudo ALL=(ALL:ALL) ALL" > "${TARGET_MNT}/etc/sudoers.d/10-installer"
+fi
+chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer"
+
+# Sync keyboard layout selected in Calamares to KDE Plasma Wayland (kxkbrc) and ensure /bin/zsh for new users
 XKB_LAYOUT="tr"
 XKB_VARIANT=""
 if [[ -f "${TARGET_MNT}/etc/default/keyboard" ]]; then
@@ -45,19 +72,30 @@ if [[ -f "${TARGET_MNT}/etc/default/keyboard" ]]; then
     XKB_VARIANT="${XKBVARIANT:-}"
 fi
 
-for cfg_dir in "${TARGET_MNT}/etc/skel/.config" "${TARGET_MNT}"/home/*/.config; do
-    mkdir -p "$cfg_dir"
-    cat > "${cfg_dir}/kxkbrc" <<EOF
+mkdir -p "${TARGET_MNT}/etc/skel/.config"
+cat > "${TARGET_MNT}/etc/skel/.config/kxkbrc" <<EOF
 [Layout]
 LayoutList=${XKB_LAYOUT}
 VariantList=${XKB_VARIANT}
 Use=true
 EOF
-    if [[ "$cfg_dir" == "${TARGET_MNT}/home/"* ]]; then
-        user_home="${cfg_dir%/.config}"
-        owner_ug="$(stat -c '%u:%g' "$user_home")"
-        chown -R "$owner_ug" "$cfg_dir"
+
+for user_home in "${TARGET_MNT}"/home/*; do
+    [[ -d "$user_home" ]] || continue
+    user_name="${user_home##*/}"
+    if [[ ! -f "${user_home}/.zshrc" && -f "${TARGET_MNT}/etc/skel/.zshrc" ]]; then
+        cp -a "${TARGET_MNT}/etc/skel/." "${user_home}/"
     fi
+    mkdir -p "${user_home}/.config"
+    cat > "${user_home}/.config/kxkbrc" <<EOF
+[Layout]
+LayoutList=${XKB_LAYOUT}
+VariantList=${XKB_VARIANT}
+Use=true
+EOF
+    chroot "$TARGET_MNT" usermod -s /bin/zsh "$user_name" 2>/dev/null || true
+    owner_ug="$(stat -c '%u:%g' "$user_home")"
+    chown -R "$owner_ug" "$user_home"
 done
 
 # Sync hardware clock to LOCAL if Windows Boot Manager is present on EFI partition
@@ -71,6 +109,9 @@ fi
 
 # Run target chroot tasks: enable UFW, purge live/installer packages, build initramfs, install systemd-boot
 chroot "$TARGET_MNT" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 KVER="$KVER" /bin/bash -e <<'EOF'
+printf "#!/bin/sh\nexit 101\n" > /usr/sbin/policy-rc.d
+chmod 0755 /usr/sbin/policy-rc.d
+
 if command -v ufw >/dev/null 2>&1; then
     ufw default deny incoming || true
     ufw default allow outgoing || true
@@ -81,16 +122,22 @@ fi
 dpkg --purge --no-triggers \
     live-boot live-boot-initramfs-tools \
     calamares os-prober grub-common grub2-common 2>/dev/null || true
-rm -rf /etc/calamares
+rm -rf /etc/calamares /usr/sbin/policy-rc.d
 
 # Build clean target initramfs once (with config-7.3.0-ogustOS present in /boot)
 update-initramfs -c -k "$KVER"
 
 # Install systemd-boot into /boot (or /boot/efi if separate)
 if mountpoint -q /boot/efi; then
-    bootctl --esp-path=/boot/efi --boot-path=/boot install || bootctl --esp-path=/boot/efi --boot-path=/boot --no-variables install
+    bootctl --esp-path=/boot/efi --boot-path=/boot install || bootctl --esp-path=/boot/efi --boot-path=/boot --no-variables install || true
+    mkdir -p /boot/efi/EFI/BOOT /boot/efi/EFI/systemd
+    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/systemd/systemd-bootx64.efi
 else
-    bootctl --path=/boot install || bootctl --path=/boot --no-variables install
+    bootctl --path=/boot install || bootctl --path=/boot --no-variables install || true
+    mkdir -p /boot/EFI/BOOT /boot/EFI/systemd
+    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/BOOT/BOOTX64.EFI
+    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
 fi
 EOF
 
