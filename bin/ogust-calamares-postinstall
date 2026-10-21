@@ -38,6 +38,11 @@ for f in "/boot/config-${KVER}" "/boot/System.map-${KVER}"; do
     fi
 done
 
+if [[ -d /usr/lib/systemd/boot/efi ]]; then
+    mkdir -p "${TARGET_MNT}/usr/lib/systemd/boot/efi"
+    cp -a /usr/lib/systemd/boot/efi/. "${TARGET_MNT}/usr/lib/systemd/boot/efi/"
+fi
+
 # Remove live installer systemd unit from installed system
 rm -f "${TARGET_MNT}/etc/systemd/system/ogust-installer.service" \
       "${TARGET_MNT}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
@@ -131,13 +136,13 @@ update-initramfs -c -k "$KVER"
 if mountpoint -q /boot/efi; then
     bootctl --esp-path=/boot/efi --boot-path=/boot install || bootctl --esp-path=/boot/efi --boot-path=/boot --no-variables install || true
     mkdir -p /boot/efi/EFI/BOOT /boot/efi/EFI/systemd
-    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
-    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/systemd/systemd-bootx64.efi
+    cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+    cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/efi/EFI/systemd/systemd-bootx64.efi
 else
     bootctl --path=/boot install || bootctl --path=/boot --no-variables install || true
     mkdir -p /boot/EFI/BOOT /boot/EFI/systemd
-    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/BOOT/BOOTX64.EFI
-    cp -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
+    cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/BOOT/BOOTX64.EFI
+    cp -f --no-preserve=ownership,mode /usr/lib/systemd/boot/efi/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
 fi
 EOF
 
@@ -169,7 +174,9 @@ if [[ "$ROOT_FSTYPE" == "btrfs" ]] && [[ "$ROOT_OPTS" =~ subvol=([^,]+) ]]; then
     BOOT_ROOT_ARGS="${BOOT_ROOT_ARGS} rootflags=subvol=${BASH_REMATCH[1]}"
 fi
 
-mkdir -p "${TARGET_MNT}/boot/loader/entries"
+mkdir -p "${TARGET_MNT}/etc/kernel" "${TARGET_MNT}/boot/loader/entries"
+echo "${BOOT_ROOT_ARGS} ${KERNEL_CMDLINE}" > "${TARGET_MNT}/etc/kernel/cmdline"
+
 cat > "${TARGET_MNT}/boot/loader/loader.conf" <<'EOF'
 default ogustos.conf
 timeout 0

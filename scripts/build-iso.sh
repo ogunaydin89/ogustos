@@ -276,7 +276,7 @@ echo "[::] Compressing clean rootfs into ${ISO_DIR}/live/filesystem.squashfs..."
 rm -f "${ISO_DIR}/live/filesystem.squashfs"
 mksquashfs "$CHROOT_DIR" "${ISO_DIR}/live/filesystem.squashfs" \
     -comp zstd -Xcompression-level 19 -noappend \
-    -e boot/vmlinuz-* boot/initrd.img-*
+    -wildcards -e "boot/vmlinuz-*" "boot/initrd.img-*"
 
 cp -f "${CHROOT_DIR}/usr/lib/systemd/boot/efi/systemd-bootx64.efi" "${ISO_DIR}/EFI/BOOT/BOOTX64.EFI"
 
