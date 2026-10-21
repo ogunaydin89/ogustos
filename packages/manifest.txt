@@ -1,8 +1,9 @@
 # ==============================================================================
-# ogustOS Explicit Package Manifest (--no-install-recommends enforced)
+# ogustOS System Package Manifest
+# Installed with APT_Install-Recommends="false"
 # ==============================================================================
 
-# --- 1. Core Boot, Kernel, Firmware & Systemd Base ---
+# --- 1. Base System, Bootloader, Kernel & Firmware ---
 ogustos-base
 linux-image-ogustos
 linux-headers-ogustos
@@ -26,7 +27,7 @@ ca-certificates
 gnupg
 nala
 
-# --- 2. Pure KDE Plasma 6.8+ Wayland Desktop (Zero X11 Session / Zero Akonadi) ---
+# --- 2. KDE Plasma Wayland Desktop ---
 plasma-desktop
 plasma-workspace
 kwin-wayland
@@ -65,7 +66,7 @@ kdegraphics-thumbnailers
 kmahjongg
 print-manager
 
-# --- 3. Daily GUI Applications (Workstation + School + Media) ---
+# --- 3. Desktop Applications ---
 google-chrome-stable
 mpv
 libreoffice-fresh
@@ -74,7 +75,7 @@ viewnior
 krita
 emerge-pdf
 
-# --- 4. Compiler Toolchain, Kernel Build Tools, Multi-Slot Python & ROCm ---
+# --- 4. Compiler Toolchain, Build System, Python & Compute ---
 clang
 llvm
 lld
@@ -112,7 +113,7 @@ libamdhip64-dev
 rocminfo
 rocm-smi
 
-# --- 5. Gaming & Graphics Subsystem (No gamemode / mangohud / gamescope) ---
+# --- 5. Graphics, Vulkan & Gaming ---
 mesa-vulkan-drivers
 mesa-vulkan-drivers:i386
 libglx-mesa0
@@ -126,7 +127,7 @@ vulkan-tools
 steam-installer
 proton-ge-custom
 
-# --- 6. Low-Latency Audio & Hardware Codecs ---
+# --- 6. Audio & Multimedia Codecs ---
 pipewire
 pipewire-pulse
 pipewire-alsa
@@ -140,7 +141,7 @@ gstreamer1.0-plugins-good
 gstreamer1.0-plugins-bad
 gstreamer1.0-plugins-ugly
 
-# --- 7. Printers, USBs & Android MTP/ADB ---
+# --- 7. Hardware Utilities, Printing & Filesystems ---
 cups
 ipp-usb
 udisks2
@@ -154,7 +155,7 @@ pciutils
 dmidecode
 lm-sensors
 
-# --- 8. Zsh, CLI Utilities & Archive Tools (1:1 Match with PC 1) ---
+# --- 8. Shell & Command-Line Utilities ---
 zsh
 zsh-autosuggestions
 zsh-syntax-highlighting
@@ -178,7 +179,7 @@ lz4
 pigz
 unrar
 
-# --- 9. Complete Font Suite ---
+# --- 9. Fonts ---
 ttf-mscorefonts-installer
 fonts-crosextra-carlito
 fonts-crosextra-caladea

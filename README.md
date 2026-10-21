@@ -1,44 +1,78 @@
-# `ogustOS` KDE
+# ogustOS
 
-An opinionated, locked-down Linux distribution engineered for **KDE Plasma 6.8+ Wayland**, **`ext4`**, and **zero-bloat low-latency gaming & workstation throughput**.
+**ogustOS** is a minimal, low-latency `x86_64` Linux distribution built around **KDE Plasma Wayland**, **`ext4`**, and the custom **`7.3.x-ogustOS`** kernel.
 
 ![ogustOS Wordmark](./branding/ogustos-wordmark.svg)
 
 ---
 
-## 1. Core Architectural Pillars
+## Key Features
 
-1. **Solves Debian's Only Weakness:**
-   - Combines Debian's unbreakable `.deb` package management, multiarch (`amd64` + `i386`), and `apt-mark hold` version locking with the **latest upstream Linux Kernel (`7.3.x-ogustOS` from `kernel.org`)**, **latest Mesa (`radv` + `radeonsi` + VA-API)**, **latest `linux-firmware`**, and **latest KDE Plasma (`6.8+` Wayland)**.
-2. **3-Repository Pinning Hierarchy (`apt/preferences.d/`):**
-   - **Tier 1 — `ogustOS` (`Pin-Priority: 1001`):** Absolute authority (`main` for kernel/mesa/firmware/kde/base; `apps` for `emerge-pdf`, `viewnior`, `libreoffice-fresh`, etc.—allowing school **Pardus** PCs and ETAP interactive boards to add the `apps` component directly!). Indexed with `dpkg-scanpackages --multiversion` so all historical versions remain available in the catalogue (`ogust versions <pkg>`).
-   - **Tier 2 — `Debian` (`Pin-Priority: 900`):** Core OS and userland libraries (`deb` + `deb-src`, with stock Debian `250 Hz` kernels blocked at `-1`).
-   - **Tier 3 — `Pardus 25` (`Pin-Priority: 400` / `900` for `pardus-*`, `akis*`, `e-imza*`):** Selective access to TÜBİTAK ULAKBİM and Turkish institutional tools while blocking Pardus from touching `/etc/os-release`, bootloaders, or desktop branding (`-1`).
-3. **Custom Portable Kernel (`7.3.x-ogustOS` — `LLVM=1` + `ThinLTO` + `BORE` + `BBRv3`):**
-   - Built from `kernel.org` `7.3.x` source over our stripped `214 KB` config ([`kernel/config-7.3-ogustOS`](./kernel/config-7.3-ogustOS) + [`kernel/fragments/ogustos-overrides.config`](./kernel/fragments/ogustos-overrides.config)):
-     - **Portable `x86_64` Target:** `CONFIG_GENERIC_CPU=y` (`# CONFIG_X86_NATIVE_CPU is not set`) + both `CONFIG_X86_AMD_PSTATE=y` (`active`) and `CONFIG_X86_INTEL_PSTATE=y` so the kernel runs safely on every 64-bit AMD and Intel CPU.
-     - **Full Clang/LLVM + ThinLTO:** Compiled with `make LLVM=1 LLVM_IAS=1` and `CONFIG_LTO_CLANG_THIN=y` for cross-file inlining across `vmlinux`.
-     - **Built-In (`=y`) Hotpaths:** `CONFIG_EXT4_FS=y`, `CONFIG_BLK_DEV_NVME=y`, `CONFIG_NTSYNC=y`, `CONFIG_ZRAM=y` (`lz4`), `CONFIG_TCP_CONG_BBR=y` (Google `BBRv3`), and `CONFIG_NET_SCH_FQ=y` linked directly into `vmlinux` for ThinLTO optimization.
-     - **Low-Latency Scheduler & RCU:** `CONFIG_SCHED_BORE=y`, `CONFIG_SCHED_CLASS_EXT=y` (`sched_ext`), `CONFIG_HZ_1000=y`, `CONFIG_PREEMPT=y`, `CONFIG_SCHED_HRTICK=y`, `CONFIG_RCU_BOOST=y` (`DELAY=0`), and `CONFIG_LRU_GEN_ENABLED=y` (`MGLRU`).
-     - **Mitigations Off:** `# CONFIG_CPU_MITIGATIONS is not set` at compile time + `mitigations=off` on the boot command line + `kernel.split_lock_mitigate = 0`.
-4. **Lean Gaming & Workstation Stack (Zero Userspace Daemon/Overlay Bloat):**
-   - Pre-installed **Steam** + 32-bit Vulkan/PipeWire libraries + **Proton-GE**, `PROTON_USE_NTSYNC=1`, `MESA_SHADER_CACHE_MAX_SIZE=16G`, `RADV_PERFTEST=gpl`, PipeWire `48000 Hz` / `64` quantum (`1.33 ms`), `vm.max_map_count = 2147483642`.
-   - Explicitly excludes `gamemode`, `mangohud`, and `gamescope`.
-   - Pre-installs full compiler toolchain (`clang`, `llvm`, `lld`, `gcc`, `g++`, `make`, `ninja`, `meson`, `cmake`, `mold`, `ccache`), **ROCm**, and **multi-slot Python (`3.10`, `3.11`, `3.12`, `3.13`)**.
-5. **Instant Pure-Text 6-Prompt Offline SquashFS Installer ([`bin/ogust-install`](./bin/ogust-install)):**
-   - USB boots with `timeout 0` straight into `ogust-install` on `tty1` (no GRUB menu, no Live GUI session).
-   - **First thing on screen:** `Select installation target drive:` → `1) Use full drive` vs `2) Install alongside existing OS` → `Location` → `Keyboard` → `Locale` → `Username & Password`.
-   - Extracts the pre-built `filesystem.squashfs` to `ext4` (`rw,noatime,commit=60,discard`) in ~18 seconds on NVMe, installs `systemd-boot`, and prompts to remove the USB and press `[ENTER]` to reboot.
+### 1. `7.3.x-ogustOS` Kernel
+Built from upstream `kernel.org` sources using **Clang/LLVM** with **ThinLTO** (`CONFIG_LTO_CLANG_THIN=y`) over a full universal `amd64` driver configuration (`4,198` loadable modules):
+- **CPU Scheduler:** **BORE** (`CONFIG_SCHED_BORE=y`) + **CachyOS** interactivity patchset (`CONFIG_CACHY=y`) + **`sched_ext`** (`CONFIG_SCHED_CLASS_EXT=y`).
+- **Preemption & Timer:** Full preemption (`CONFIG_PREEMPT=y`), `1000 Hz` tick (`CONFIG_HZ_1000=y`), high-resolution timers, and zero-delay RCU priority boosting (`CONFIG_RCU_BOOST=y`, `CONFIG_RCU_BOOST_DELAY=0`).
+- **Networking:** Google **TCP BBRv3** (`CONFIG_TCP_CONG_BBR3=y`, `CONFIG_DEFAULT_TCP_CONG="bbr3"`) and Fair Queueing (`CONFIG_NET_SCH_FQ=y`) built in.
+- **Built-In Core Hotpaths (`=y`):** `ext4`, `nvme`, `zram` (`lz4`), `ntsync` (`/dev/ntsync`), `amd_pstate` (`active`), and `intel_pstate` linked directly into `vmlinux` for cross-file ThinLTO inlining.
+- **Memory Management:** Multi-Gen LRU (`CONFIG_LRU_GEN_ENABLED=y`), `madvise` Transparent Hugepages, and `zram` (`lz4`) swap.
+
+### 2. Pure Wayland Desktop & Low-Latency Audio/Graphics
+- **Desktop:** KDE Plasma 6 Wayland (`kwin-wayland`, `sddm`, `dbus-broker`) with no legacy X11 session clutter or background indexing daemons (`Baloo` and `Akonadi` excluded).
+- **Audio:** PipeWire and WirePlumber configured for `48000 Hz` / `64`-sample quantum (`1.33 ms`).
+- **Graphics & Gaming:** Mesa Vulkan (`radv`, `anv`, `lvp`) and VA-API (`64-bit` + `32-bit`), Steam, and **Proton-GE** pre-installed with `PROTON_USE_NTSYNC=1` and `RADV_PERFTEST=gpl`.
+- **Development Toolchain:** Pre-installed `clang`, `llvm`, `lld`, `gcc`, `g++`, `mold`, `ccache`, `cmake`, `meson`, `ninja`, `git`, `gh`, multi-slot Python (`3.13`, `3.14`), and ROCm OpenCL/HIP runtime.
+
+### 3. Multi-Version APT Repository & `ogust` CLI
+Packages are installed strictly with `--no-install-recommends` across a three-tier repository hierarchy (`ogustOS` `main`/`apps`, Debian Testing, and optional third-party repositories). The `ogustOS` repository indexes all package versions with `--multiversion` so previous releases remain available for rollback.
+
+| Command | Description |
+| :--- | :--- |
+| `ogust up` | Synchronize repositories and upgrade all unlocked packages |
+| `ogust in <pkg>` | Install package(s) (`pkg` or `pkg=version`) |
+| `ogust rm <pkg>` | Remove package(s) and unused dependencies |
+| `ogust se <query>` | Search available packages |
+| `ogust versions <pkg>` | List all available versions of `<pkg>` in the repository |
+| `ogust lock <pkg>` | Pin `<pkg>` at its current version (`apt-mark hold`) |
+| `ogust unlock <pkg>` | Unpin `<pkg>` (`apt-mark unhold`) |
+| `ogust build <pkg>` | Build `<pkg>` from source with local compiler flags |
+
+### 4. `ogust-install` Text Mode Installer
+The installation media boots directly (`timeout 0`) into `ogust-install` on `tty1`:
+1. Target disk selection (`Full drive GPT` or `Install alongside existing OS` with automatic Windows dual-boot detection)
+2. Timezone
+3. Keyboard layout
+4. System locale
+5. Username & password
+
+The installer extracts the pre-built `filesystem.squashfs` image onto `ext4` (`rw,noatime,commit=60,discard`), generates a host-specific `initramfs`, and configures `systemd-boot`.
 
 ---
 
-## 2. Repository Structure
+## Repository Layout
 
-- [`branding/`](./branding/) — 4D Galatasaray *Sarı-Kırmızı* (`#FDB912` on `#94042B`) single-path vector logo (`ogustos-logo.svg`), wordmark (`ogustos-wordmark.svg`), 4D bevel render (`ogustos-concept2-render.jpg`), `fastfetch` ASCII art (`ogustos-ascii.txt`), and 16:9 dark crimson & charcoal wallpaper (`wallpaper.jpg`).
-- [`kernel/`](./kernel/) — Stripped `config-7.3-ogustOS` and `fragments/ogustos-overrides.config`.
-- [`apt/`](./apt/) — 3-repository `.sources` (`deb` + `deb-src`), `Pin-Priority` rules (`1001` / `900` / `400`), and `99-ogustos` (`Install-Recommends "false"`).
-- [`bin/ogust`](./bin/ogust) — Unified CLI wrapper (`ogust up`, `ogust in`, `ogust rm`, `ogust versions`, `ogust build`, `ogust lock`, `ogust unlock`).
-- [`bin/ogust-install`](./bin/ogust-install) — 6-prompt pure-text offline SquashFS installer.
-- [`etc/`](./etc/) — Tuned `systemd` configs (`5s` stop timeout, `64M` journal cap, `zram-generator` `lz4`), sysctls, RGB subpixel `fonts/local.conf`, `mpv.conf`, Wayland SDDM config, and `/etc/skel` (`.zshrc`, PipeWire low-latency, Flat `1:1` mouse profile, `Baloo` disabled).
-- [`packages/manifest.txt`](./packages/manifest.txt) — Complete out-of-the-box package manifest.
-- [`scripts/`](./scripts/) — `build-kernel.sh`, `build-repo.sh`, and `build-iso.sh`.
+```text
+.
+├── apt/          # APT sources, Pin-Priority rules, and no-recommends configuration
+├── bin/          # ogust CLI wrapper and ogust-install text installer
+├── branding/     # Vector logos, wordmark, fastfetch ASCII art, and default wallpaper
+├── certs/        # Optional CA certificates for institutional networks
+├── etc/          # Systemd, sysctl, udev, SDDM, fontconfig, mpv, and /etc/skel defaults
+├── kernel/       # Universal 7.3-ogustOS base config, overrides fragment, and 7.3 patches
+├── packages/     # Explicit system package manifest (packages/manifest.txt)
+└── scripts/      # Automated build scripts (kernel, apps, APT repository, and ISO)
+```
+
+---
+
+## Building from Source
+
+```bash
+# 1. Build the 7.3.x-ogustOS kernel and header packages
+./scripts/build-kernel.sh 7.3
+
+# 2. Build custom packages and generate the multi-version APT repository
+./scripts/build-repo.sh
+
+# 3. Build the hybrid UEFI/GPT installation ISO (dist/ogustOS-kde-amd64.iso)
+sudo ./scripts/build-iso.sh
+```

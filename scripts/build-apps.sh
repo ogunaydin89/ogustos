@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# build-apps.sh — Packages custom ogustOS & School Pardus applications (.deb)
+# build-apps.sh — Packages custom ogustOS applications (.deb)
 #   1. emerge-pdf          -> pool/apps/emerge-pdf_1.0.0_all.deb
 #   2. meb-sertifika       -> pool/apps/meb-sertifika_1.0.0_all.deb (Provides: fatihca, meb-ser)
 #   3. libreoffice-fresh   -> pool/apps/libreoffice-fresh_25.8-1ogustos1_all.deb
