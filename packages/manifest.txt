@@ -152,6 +152,7 @@ parted
 gdisk
 android-tools-adb
 android-tools-fastboot
+libmtp-runtime
 usbutils
 pciutils
 dmidecode

@@ -16,7 +16,7 @@ EMERGE_PDF_SRC="${EMERGE_PDF_SRC:-/home/helin/Code/emerge-pdf}"
 mkdir -p "${OUT_DIR}/pool/apps" "${OUT_DIR}/pool/main" "$BUILD_TMP"
 
 # ------------------------------------------------------------------------------
-# 1. Package EmergePDF (emerge-pdf_1.0.0_all.deb)
+# 1. Package EmergePDF (emerge-pdf_1.0.1-1ogustos1_all.deb)
 # ------------------------------------------------------------------------------
 if [[ -d "$EMERGE_PDF_SRC" ]]; then
     STAGE="${REPO_ROOT}/dist/stage/emerge-pdf"
@@ -29,7 +29,7 @@ if [[ -d "$EMERGE_PDF_SRC" ]]; then
 
     cat > "${STAGE}/DEBIAN/control" <<'EOF'
 Package: emerge-pdf
-Version: 1.0.0
+Version: 1.0.1-1ogustos1
 Section: utils
 Priority: optional
 Architecture: all
@@ -92,8 +92,9 @@ Categories=Office;Utility;Graphics;
 StartupWMClass=emerge-pdf
 EOF
 
-    dpkg-deb --build --root-owner-group "$STAGE" "${OUT_DIR}/pool/apps/emerge-pdf_1.0.0_all.deb"
-    echo "[::] Packaged ${OUT_DIR}/pool/apps/emerge-pdf_1.0.0_all.deb"
+    rm -f "${OUT_DIR}/pool/apps/emerge-pdf_"*.deb
+    dpkg-deb --build --root-owner-group "$STAGE" "${OUT_DIR}/pool/apps/emerge-pdf_1.0.1-1ogustos1_all.deb"
+    echo "[::] Packaged ${OUT_DIR}/pool/apps/emerge-pdf_1.0.1-1ogustos1_all.deb"
 fi
 
 # ------------------------------------------------------------------------------

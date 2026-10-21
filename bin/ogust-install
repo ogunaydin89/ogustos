@@ -23,7 +23,7 @@ for p in /run/live/medium/live/filesystem.squashfs /lib/live/mount/medium/live/f
 done
 TARGET_MNT="/mnt"
 MOUNT_OPTS="rw,noatime,commit=60"
-KERNEL_CMDLINE="amd_pstate=active amdgpu.dcdebugmask=0x10 amdgpu.gpu_recovery=1 transparent_hugepage=madvise mitigations=off rw quiet"
+KERNEL_CMDLINE="amdgpu.gpu_recovery=1 rw quiet"
 
 # Enable PCIe ASPM performance policy only on desktop/tower chassis; preserve battery on laptops
 CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo 3)"
@@ -284,15 +284,34 @@ mount -o "$MOUNT_OPTS" "$ROOT_PART" "$TARGET_MNT"
 echo "[::] Extracting ogustOS SquashFS image to ${TARGET_MNT}..."
 unsquashfs -f -d "$TARGET_MNT" "$SQUASHFS_IMAGE"
 
+# Preserve /boot files (config-*, System.map-*) extracted by unsquashfs before mounting FAT32 /boot over it
+BOOT_STAGE="$(mktemp -d /tmp/ogust-boot.XXXXXX)"
+if [[ -d "${TARGET_MNT}/boot" ]]; then
+    shopt -s nullglob dotglob
+    boot_files=("${TARGET_MNT}/boot/"*)
+    if (( ${#boot_files[@]} > 0 )); then
+        mv -f "${boot_files[@]}" "$BOOT_STAGE/"
+    fi
+    shopt -u nullglob dotglob
+fi
+
 mkdir -p "${TARGET_MNT}/boot" "${TARGET_MNT}/efi"
 if (( USE_XBOOTLDR == 1 )); then
-    mount "$EFI_PART" "${TARGET_MNT}/efi"
-    mount "$XBOOT_PART" "${TARGET_MNT}/boot"
+    mount -o umask=0077 "$EFI_PART" "${TARGET_MNT}/efi"
+    mount -o umask=0077 "$XBOOT_PART" "${TARGET_MNT}/boot"
     ESP_MNT_PATH="${TARGET_MNT}/efi"
 else
-    mount "$EFI_PART" "${TARGET_MNT}/boot"
+    mount -o umask=0077 "$EFI_PART" "${TARGET_MNT}/boot"
     ESP_MNT_PATH="${TARGET_MNT}/boot"
 fi
+
+shopt -s nullglob dotglob
+staged_boot_files=("${BOOT_STAGE}/"*)
+if (( ${#staged_boot_files[@]} > 0 )); then
+    cp -a --no-preserve=ownership,mode "${staged_boot_files[@]}" "${TARGET_MNT}/boot/"
+fi
+shopt -u nullglob dotglob
+rm -rf "$BOOT_STAGE"
 
 echo "[::] Generating /etc/fstab..."
 ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
@@ -384,7 +403,7 @@ if command -v ufw >/dev/null 2>&1; then
     sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
 fi
 
-dpkg --purge live-boot live-boot-initramfs-tools 2>/dev/null || true
+dpkg --purge --no-triggers live-boot live-boot-initramfs-tools 2>/dev/null || true
 update-initramfs -c -k "$KVER"
 if [[ "$USE_XBOOTLDR" == "1" ]]; then
     bootctl --esp-path=/efi --boot-path=/boot install || bootctl --esp-path=/efi --boot-path=/boot --no-variables install
@@ -426,8 +445,11 @@ fi
 umount "${TARGET_MNT}"
 
 ELAPSED=$((SECONDS - START_TIME))
+# Pre-open kernel sysrq trigger in RAM before user unplugs the live USB stick
+echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
+exec 9>/proc/sysrq-trigger 2>/dev/null || true
 echo "----------------------------------------------------------------"
 echo "ogustOS installation completed in ${ELAPSED}s."
 echo "Remove the installation drive and press [ENTER] to reboot."
 read -r _
-systemctl reboot -i
+printf 'b\n' >&9 2>/dev/null || systemctl reboot -i

@@ -1,5 +1,5 @@
 typeset -U path
-path=(~/.local/bin $path)
+path=(~/.local/bin $path /usr/sbin /sbin)
 
 HISTFILE=~/.zsh_history
 HISTSIZE=100000

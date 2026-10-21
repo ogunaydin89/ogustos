@@ -3,3 +3,7 @@
 Package: *
 Pin: release o=ogustOS
 Pin-Priority: 1001
+
+Package: *
+Pin: version *ogustos*
+Pin-Priority: 1001

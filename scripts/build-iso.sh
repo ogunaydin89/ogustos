@@ -119,14 +119,23 @@ apt-get install -y \
 
 # Install full ogustOS package manifest (with standard Debian Recommends enabled)
 xargs -a /tmp/manifest.list apt-get install -y
-apt-get install -y --reinstall ogustos-base emerge-pdf libreoffice-fresh
+apt-get dist-upgrade -y
+apt-get install -y --allow-downgrades viewnior/forky 2>/dev/null || apt-get install -y --allow-downgrades viewnior/testing 2>/dev/null || true
+dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
+        /tmp/ogustos-repo/pool/apps/emerge-pdf_*.deb \
+        /tmp/ogustos-repo/pool/apps/libreoffice-fresh_*.deb
+apt-get purge -y 'exim4*' 2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
+
+# Remove duplicate Google Chrome APT source file (keep 04-google-chrome.sources)
+rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
 
 # Re-run ogustos-base postinst so wallpaper & binary symlinks (bat, fd) are applied over kde-full
 /var/lib/dpkg/info/ogustos-base.postinst configure
 
 # Pre-build EmergePDF offline virtualenv (with pillow-heif) so first launch is instant & 100% offline
-if [[ -d /usr/share/emerge-pdf && ! -x /usr/share/emerge-pdf/venv/bin/python ]]; then
+if [[ -d /usr/share/emerge-pdf ]]; then
+    rm -rf /usr/share/emerge-pdf/venv
     python3 -m venv --system-site-packages /usr/share/emerge-pdf/venv
     /usr/share/emerge-pdf/venv/bin/pip install --disable-pip-version-check --no-input pillow-heif || true
 fi
@@ -164,13 +173,14 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 EOF
 
-# Stage local on-disk /var/lib/ogustos-repo (apps + base meta-packages) so
+# Stage local on-disk /var/lib/ogustos-repo (apps + kernel & base packages) so
 # 'ogust up' and offline 'ogust in meb-sertifika' always work without network/TLS chicken-and-egg
+rm -rf "${CHROOT_DIR}/var/lib/ogustos-repo/pool"
 mkdir -p "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main" "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps"
 cp -a "${REPO_ROOT}/dist/repo/pool/apps/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps/"
 cp -a "${REPO_ROOT}/dist/repo/pool/main/ogustos-base_"*.deb \
-      "${REPO_ROOT}/dist/repo/pool/main/linux-image-ogustos_"*.deb \
-      "${REPO_ROOT}/dist/repo/pool/main/linux-headers-ogustos_"*.deb \
+      "${REPO_ROOT}/dist/repo/pool/main/linux-image-"*.deb \
+      "${REPO_ROOT}/dist/repo/pool/main/linux-headers-"*.deb \
       "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main/" 2>/dev/null || true
 
 cp -f "${REPO_ROOT}/apt/sources.list.d/01-ogustos.sources" "${CHROOT_DIR}/etc/apt/sources.list.d/01-ogustos.sources"
@@ -199,6 +209,12 @@ apt-get update -o Dir::Etc::sourcelist="sources.list.d/01-ogustos.sources" -o Di
 
 # Restore systemd-resolved stub symlink so DNSOverTLS & NetworkManager DNS work dynamically on target machines
 ln -sf ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+# Restore _chrony group ownership on /etc/chrony/chrony.keys if chrony is installed
+if [[ -f /etc/chrony/chrony.keys ]] && getent group _chrony >/dev/null 2>&1; then
+    chgrp _chrony /etc/chrony/chrony.keys
+    chmod 0640 /etc/chrony/chrony.keys
+fi
 EOF
 
 cat > "${CHROOT_DIR}/etc/systemd/system/ogust-installer.service" <<'EOF'

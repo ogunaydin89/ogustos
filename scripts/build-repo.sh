@@ -21,7 +21,7 @@ mkdir -p "${PKG_STAGE}/usr/share/sddm/themes/breeze"
 
 cat > "${PKG_STAGE}/DEBIAN/control" <<'EOF'
 Package: ogustos-base
-Version: 1.0.0
+Version: 1.0.1-1ogustos1
 Section: admin
 Priority: required
 Architecture: all
@@ -74,6 +74,14 @@ LAYOUT_JS="/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPane
 if [[ -f "$LAYOUT_JS" ]] && ! grep -q 'ogustos-logo' "$LAYOUT_JS"; then
     sed -i 's/panel\.addWidget("org\.kde\.plasma\.kickoff")/var kickoff = panel.addWidget("org.kde.plasma.kickoff"); kickoff.currentConfigGroup = ["General"]; kickoff.writeConfig("icon", "ogustos-logo");/' "$LAYOUT_JS" || true
 fi
+
+# Prevent duplicate Google Chrome APT source file (keep 04-google-chrome.sources)
+rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
+
+# Mask drkonqi coredump units globally since coredumps are disabled by design
+mkdir -p /etc/systemd/user
+ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-launcher.socket
+ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-pickup.service
 EOF
 chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
 
@@ -104,7 +112,8 @@ mkdir -p "${OUT_DIR}/pool/main" "${OUT_DIR}/pool/apps"
 mkdir -p "${OUT_DIR}/dists/stable/main/binary-amd64" "${OUT_DIR}/dists/stable/apps/binary-amd64"
 mkdir -p "${OUT_DIR}/dists/stable/main/binary-i386"  "${OUT_DIR}/dists/stable/apps/binary-i386"
 
-dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.0_all.deb"
+rm -f "${OUT_DIR}/pool/main/ogustos-base_"*.deb
+dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.1-1ogustos1_all.deb"
 
 # Build custom apps (emerge-pdf, etc.)
 if [[ -x "${REPO_ROOT}/scripts/build-apps.sh" ]]; then
