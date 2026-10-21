@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# build-kernel.sh — Builds linux-image-7.3.x-ogustOS .deb from kernel.org source
-# Applies BORE + BBRv3 patches, compiles with LLVM=1 + Clang ThinLTO (portable
-# x86_64), and generates the linux-image-ogustos / linux-headers-ogustos meta-debs.
+# build-kernel.sh — Builds universal linux-image-7.3.x-ogustOS .deb from kernel.org
+# Applies Cachy + BBRv3 + BORE patches, merges Universal Debian amd64 config +
+# ogustos-overrides.config, compiles with LLVM=1 + Clang ThinLTO, and builds meta-debs.
 # ==============================================================================
 set -euo pipefail
 
@@ -23,45 +23,46 @@ if [[ ! -f "$TARBALL" ]]; then
     curl -fLO "https://cdn.kernel.org/pub/linux/kernel/v7.x/${TARBALL}"
 fi
 
-# Fetch GPLv2 BORE + BBRv3 + Cachy base patches for this kernel series if not cached
-PATCH_BASE_URL="https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KMAJOR_MINOR}"
-for patch_name in "0001-bore-cachy.patch" "0002-bbr3.patch" "0003-cachy.patch"; do
-    target_patch="${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}/${patch_name}"
-    if [[ ! -f "$target_patch" ]]; then
-        echo "[::] Fetching ${patch_name} for Linux ${KMAJOR_MINOR}..."
-        curl -fsSL "${PATCH_BASE_URL}/${patch_name}" -o "$target_patch" || rm -f "$target_patch"
-    fi
-done
+# Fetch Cachy + BBRv3 + BORE + Clang DKMS patches if not already cached in repo
+PATCH_DIR="${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
+[[ -f "${PATCH_DIR}/0001-cachy.patch" ]] || curl -fsSL "https://github.com/CachyOS/linux/compare/e4cd5992b0de~1...52dc9bb47a1b.patch" -o "${PATCH_DIR}/0001-cachy.patch"
+[[ -f "${PATCH_DIR}/0002-bbr3.patch" ]]  || curl -fsSL "https://github.com/CachyOS/linux/compare/5b121d2f9e4f~1...a52f724cc56d.patch" -o "${PATCH_DIR}/0002-bbr3.patch"
+[[ -f "${PATCH_DIR}/0003-bore-cachy.patch" ]] || curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KMAJOR_MINOR}/sched/0001-bore-cachy.patch" -o "${PATCH_DIR}/0003-bore-cachy.patch"
+[[ -f "${PATCH_DIR}/0004-dkms-clang.patch" ]] || curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KMAJOR_MINOR}/misc/dkms-clang.patch" -o "${PATCH_DIR}/0004-dkms-clang.patch"
 
-if [[ ! -f "linux-${KVER}/vmlinux" ]]; then
+if [[ ! -f "linux-${KVER}/.patched_ogustos" ]]; then
     rm -rf "linux-${KVER}"
     tar -xf "$TARBALL"
     cd "linux-${KVER}"
 
-    if compgen -G "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}/*.patch" >/dev/null; then
-        for p in "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"/*.patch; do
-            echo "[::] Applying patch $(basename "$p")..."
-            patch -Np1 < "$p"
-        done
-    fi
+    for p in "${PATCH_DIR}"/*.patch; do
+        echo "[::] Applying patch $(basename "$p")..."
+        patch -Np1 < "$p"
+    done
+    rm -f localversion*
+    touch .patched_ogustos
+else
+    echo "[::] Reusing patched kernel tree in linux-${KVER}..."
+    cd "linux-${KVER}"
+    rm -f localversion*
+fi
 
-    echo "[::] Installing base config-7.3-ogustOS and merging portable ThinLTO overrides..."
+if [[ ! -f .config ]] || ! grep -q '^CONFIG_TCP_CONG_BBR3=y' .config; then
+    echo "[::] Installing Universal Debian base config-7.3-ogustOS and merging ogustos-overrides.config..."
     cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
     scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
     make LLVM=1 LLVM_IAS=1 olddefconfig
-else
-    echo "[::] Reusing compiled kernel tree in linux-${KVER}..."
-    cd "linux-${KVER}"
 fi
 
 # Ensure Debian Package: names are strictly lowercase while keeping uname -r as 7.3.x-ogustOS
 if ! grep -q 'KR_LOWER=' scripts/package/mkdebian; then
     sed -i '/^sourcename=/a KR_LOWER=$(echo "${KERNELRELEASE}" | tr "[:upper:]" "[:lower:]")' scripts/package/mkdebian
-    sed -i 's/^Package: \$packagename-\${KERNELRELEASE}/Package: \$packagename-\${KR_LOWER}/' scripts/package/mkdebian
-    sed -i 's/^Package: linux-headers-\${KERNELRELEASE}/Package: linux-headers-\${KR_LOWER}/' scripts/package/mkdebian
-    sed -i 's/^Package: linux-image-\${KERNELRELEASE}-dbg/Package: linux-image-\${KR_LOWER}-dbg/' scripts/package/mkdebian
+    sed -i 's/^Package: $packagename-${KERNELRELEASE}/Package: $packagename-${KR_LOWER}/' scripts/package/mkdebian
+    sed -i 's/^Package: linux-headers-${KERNELRELEASE}/Package: linux-headers-${KR_LOWER}/' scripts/package/mkdebian
+    sed -i 's/^Package: linux-image-${KERNELRELEASE}-dbg/Package: linux-image-${KR_LOWER}-dbg/' scripts/package/mkdebian
 fi
-sed -i 's/version=\${1#linux-headers-}/version=\${KERNELRELEASE}/' scripts/package/builddeb
+sed -i 's/version=${1#linux-headers-}/version=${KERNELRELEASE}/' scripts/package/builddeb
+sed -i 's/-j$(JOBS)/-j8/g; s/-j$(or $(JOBS),8)/-j8/g' scripts/Makefile.btf
 
 KREL="$(make -s kernelrelease)"
 KREL_LOWER="$(echo "$KREL" | tr '[:upper:]' '[:lower:]')"
