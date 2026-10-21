@@ -1,4 +1,4 @@
-Types: deb deb-src
+Types: deb
 URIs: https://ogunaydin89.github.io/ogustos-repo
 Suites: stable
 Components: main apps

@@ -5,7 +5,20 @@
 # ==============================================================================
 set -euo pipefail
 
+if [[ -c /dev/tty1 ]]; then
+    exec </dev/tty1 >/dev/tty1 2>&1
+    chvt 1 2>/dev/null || true
+fi
+
 SQUASHFS_IMAGE="/run/live/medium/live/filesystem.squashfs"
+LIVE_MNT="/run/live/medium"
+for p in /run/live/medium/live/filesystem.squashfs /lib/live/mount/medium/live/filesystem.squashfs; do
+    if [[ -f "$p" ]]; then
+        SQUASHFS_IMAGE="$p"
+        LIVE_MNT="${p%/live/filesystem.squashfs}"
+        break
+    fi
+done
 TARGET_MNT="/mnt"
 MOUNT_OPTS="rw,noatime,commit=60,discard"
 KERNEL_CMDLINE="amd_pstate=active amdgpu.dcdebugmask=0x10 amdgpu.gpu_recovery=1 amdgpu.ppfeaturemask=0xffffffff transparent_hugepage=madvise mitigations=off pcie_aspm.policy=performance rw quiet"
@@ -19,7 +32,7 @@ EOF
 # ------------------------------------------------------------------------------
 # 1. Select Installation Target Drive (Installer USB automatically excluded)
 # ------------------------------------------------------------------------------
-LIVE_DEV="$(findmnt -n -o SOURCE /run/live/medium 2>/dev/null | sed 's/[0-9]*$//;s/p[0-9]*$//' || true)"
+LIVE_DEV="$(findmnt -n -o SOURCE "$LIVE_MNT" 2>/dev/null | sed 's/[0-9]*$//;s/p[0-9]*$//' || true)"
 mapfile -t DISKS < <(lsblk -d -n -p -o NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {print $1" "$2" "$3" "$4}' | grep -v "^${LIVE_DEV:-/dev/null} " || true)
 
 if [[ ${#DISKS[@]} -eq 0 ]]; then
@@ -241,10 +254,18 @@ LayoutList=${KEYMAP_XKB}
 Use=true
 EOF
 
-echo "[::] Creating user '${USERNAME}' and installing systemd-boot..."
-for dir in dev dev/pts proc sys sys/firmware/efi/efivars run; do
+echo "[::] Creating user '${USERNAME}', building clean initramfs, and installing systemd-boot..."
+KVER="$(ls -1 "${TARGET_MNT}/lib/modules" | sort -V | tail -n 1)"
+cp -f "${LIVE_MNT}/live/vmlinuz" "${TARGET_MNT}/boot/vmlinuz-${KVER}"
+rm -f "${TARGET_MNT}/etc/systemd/system/ogust-installer.service" \
+      "${TARGET_MNT}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
+
+for dir in dev dev/pts proc sys run; do
     mount --bind "/$dir" "${TARGET_MNT}/$dir"
 done
+if [[ -d /sys/firmware/efi/efivars ]]; then
+    mount --bind /sys/firmware/efi/efivars "${TARGET_MNT}/sys/firmware/efi/efivars" 2>/dev/null || true
+fi
 
 chroot "$TARGET_MNT" /bin/bash -e <<EOF
 locale-gen
@@ -252,10 +273,11 @@ useradd -m -k /etc/skel -s /bin/zsh -G sudo,video,render,audio,input,lp,adm "${U
 echo "${USERNAME}:${PASS1}" | chpasswd
 passwd -l root
 
-bootctl --path=/boot install
+dpkg --purge live-boot live-boot-initramfs-tools 2>/dev/null || true
+update-initramfs -c -k "${KVER}"
+bootctl --path=/boot install || bootctl --path=/boot --no-variables install
 EOF
 
-KVER="$(ls -1 "${TARGET_MNT}/boot" | sed -n 's/^vmlinuz-//p' | sort -V | tail -n 1)"
 mkdir -p "${TARGET_MNT}/boot/loader/entries"
 cat > "${TARGET_MNT}/boot/loader/loader.conf" <<EOF
 default ogustos.conf

@@ -22,12 +22,27 @@ Version: 1.0.0
 Section: admin
 Priority: required
 Architecture: all
+Provides: xserver
 Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
 Description: Core configuration, APT pinning, branding, and CLI for ogustOS KDE
 EOF
 
 cp -a "${REPO_ROOT}/etc" "${PKG_STAGE}/"
 cp -a "${REPO_ROOT}/apt/." "${PKG_STAGE}/etc/apt/"
+install -m 0644 "${REPO_ROOT}/etc/os-release" "${PKG_STAGE}/usr/share/ogustos/os-release"
+rm -f "${PKG_STAGE}/etc/os-release"
+
+cat > "${PKG_STAGE}/DEBIAN/postinst" <<'EOF'
+#!/usr/bin/env bash
+set -e
+if ! dpkg-divert --list /usr/lib/os-release | grep -q ogustos-base; then
+    dpkg-divert --package ogustos-base --divert /usr/lib/os-release.debian --rename /usr/lib/os-release >/dev/null 2>&1 || true
+fi
+cp -f /usr/share/ogustos/os-release /usr/lib/os-release
+ln -sf ../usr/lib/os-release /etc/os-release
+EOF
+chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
+
 install -m 0755 "${REPO_ROOT}/bin/ogust" "${PKG_STAGE}/usr/bin/ogust"
 install -m 0755 "${REPO_ROOT}/bin/ogust-install" "${PKG_STAGE}/usr/bin/ogust-install"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-ascii.txt" "${PKG_STAGE}/usr/share/ogustos/ogustos-ascii.txt"

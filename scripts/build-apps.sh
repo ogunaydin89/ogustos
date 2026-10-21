@@ -153,8 +153,16 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Package libreoffice-fresh (KDE/Qt6 Native Meta-Package)
+# 3. Package libreoffice-fresh (KDE/Qt6 Native Meta-Package) & GitHub CLI (gh)
 # ------------------------------------------------------------------------------
+if ! compgen -G "${OUT_DIR}/pool/apps/gh_*_amd64.deb" >/dev/null; then
+    GH_URL="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"browser_download_url": "\([^"]*linux_amd64\.deb\)".*/\1/p' | head -n1)"
+    if [[ -n "$GH_URL" ]]; then
+        curl -fL "$GH_URL" -o "${OUT_DIR}/pool/apps/$(basename "$GH_URL")"
+        echo "[::] Bundled $(basename "$GH_URL") into pool/apps/"
+    fi
+fi
+
 LO_STAGE="${REPO_ROOT}/dist/stage/libreoffice-fresh"
 rm -rf "$LO_STAGE"
 mkdir -p "${LO_STAGE}/DEBIAN"
@@ -174,12 +182,13 @@ echo "[::] Packaged ${OUT_DIR}/pool/apps/libreoffice-fresh_25.8.0-1ogustos1_all.
 # ------------------------------------------------------------------------------
 # 4. Compile & Package Viewnior 1.8 (Removed from Debian Testing; hosted in apps)
 # ------------------------------------------------------------------------------
-if [[ "${BUILD_VIEWNIOR:-0}" == "1" ]]; then
+if [[ "${BUILD_VIEWNIOR:-0}" == "1" && ! -f "${OUT_DIR}/pool/apps/viewnior_1.8-1ogustos1_amd64.deb" ]]; then
     echo "[::] Compiling Viewnior 1.8 from source (portable x86_64)..."
     VN_DIR="${BUILD_TMP}/viewnior-src"
     VN_STAGE="${REPO_ROOT}/dist/stage/viewnior"
     rm -rf "$VN_DIR" "$VN_STAGE"
     git clone --depth=1 -b viewnior-1.8 https://github.com/hellosiyan/Viewnior.git "$VN_DIR"
+    sed -i 's/Exiv2::Image::AutoPtr/Exiv2::Image::UniquePtr/g; s/Exiv2::AnyError/Exiv2::Error/g' "${VN_DIR}/src/uni-exiv2.cpp"
     CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=mold" \
         meson setup "${VN_DIR}/build" "$VN_DIR" --prefix=/usr --buildtype=release
     ninja -C "${VN_DIR}/build"
@@ -191,7 +200,7 @@ Version: 1.8-1ogustos1
 Section: graphics
 Priority: optional
 Architecture: amd64
-Depends: libc6, libglib2.0-0, libgtk2.0-0, libexiv2-28 | libexiv2-27
+Depends: libc6, libglib2.0-0t64 | libglib2.0-0, libgtk2.0-0t64 | libgtk2.0-0, libexiv2-28 | libexiv2-27
 Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
 Description: Fast, simple, and elegant image viewer for ogustOS and Pardus
 EOF
@@ -203,12 +212,13 @@ fi
 # 5. Package Proton-GE Custom (/usr/share/steam/compatibilitytools.d/)
 # ------------------------------------------------------------------------------
 if [[ "${BUILD_PROTON_GE:-0}" == "1" ]]; then
-    GE_TAG="$(curl -fsSL https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')"
+    GE_TAG="$(curl -fsSL https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n1)"
     GE_VER="${GE_TAG#GE-Proton}"
-    GE_TAR="${BUILD_TMP}/${GE_TAG}.tar.gz"
+    GE_TAR="${BUILD_TMP}/${GE_TAG}-x86_64.tar.gz"
     if [[ ! -f "$GE_TAR" ]]; then
-        echo "[::] Downloading ${GE_TAG}..."
-        curl -fL "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/${GE_TAG}/${GE_TAG}.tar.gz" -o "$GE_TAR"
+        echo "[::] Downloading ${GE_TAG} (x86_64)..."
+        curl -fL "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/${GE_TAG}/${GE_TAG}-x86_64.tar.gz" -o "$GE_TAR" \
+            || curl -fL "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/${GE_TAG}/${GE_TAG}.tar.gz" -o "$GE_TAR"
     fi
     GE_STAGE="${REPO_ROOT}/dist/stage/proton-ge-custom"
     rm -rf "$GE_STAGE"

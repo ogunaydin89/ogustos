@@ -33,32 +33,49 @@ for patch_name in "0001-bore-cachy.patch" "0002-bbr3.patch" "0003-cachy.patch"; 
     fi
 done
 
-rm -rf "linux-${KVER}"
-tar -xf "$TARBALL"
-cd "linux-${KVER}"
+if [[ ! -f "linux-${KVER}/vmlinux" ]]; then
+    rm -rf "linux-${KVER}"
+    tar -xf "$TARBALL"
+    cd "linux-${KVER}"
 
-if compgen -G "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}/*.patch" >/dev/null; then
-    for p in "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"/*.patch; do
-        echo "[::] Applying patch $(basename "$p")..."
-        patch -Np1 < "$p"
-    done
+    if compgen -G "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}/*.patch" >/dev/null; then
+        for p in "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"/*.patch; do
+            echo "[::] Applying patch $(basename "$p")..."
+            patch -Np1 < "$p"
+        done
+    fi
+
+    echo "[::] Installing base config-7.3-ogustOS and merging portable ThinLTO overrides..."
+    cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
+    scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
+    make LLVM=1 LLVM_IAS=1 olddefconfig
+else
+    echo "[::] Reusing compiled kernel tree in linux-${KVER}..."
+    cd "linux-${KVER}"
 fi
 
-echo "[::] Installing base config-7.3-ogustOS and merging portable ThinLTO overrides..."
-cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
-scripts/kconfig/merge_config.sh -m .config "${REPO_ROOT}/kernel/fragments/ogustos-overrides.config"
-make LLVM=1 LLVM_IAS=1 olddefconfig
+# Ensure Debian Package: names are strictly lowercase while keeping uname -r as 7.3.x-ogustOS
+if ! grep -q 'KR_LOWER=' scripts/package/mkdebian; then
+    sed -i '/^sourcename=/a KR_LOWER=$(echo "${KERNELRELEASE}" | tr "[:upper:]" "[:lower:]")' scripts/package/mkdebian
+    sed -i 's/^Package: \$packagename-\${KERNELRELEASE}/Package: \$packagename-\${KR_LOWER}/' scripts/package/mkdebian
+    sed -i 's/^Package: linux-headers-\${KERNELRELEASE}/Package: linux-headers-\${KR_LOWER}/' scripts/package/mkdebian
+    sed -i 's/^Package: linux-image-\${KERNELRELEASE}-dbg/Package: linux-image-\${KR_LOWER}-dbg/' scripts/package/mkdebian
+fi
+sed -i 's/version=\${1#linux-headers-}/version=\${KERNELRELEASE}/' scripts/package/builddeb
 
 KREL="$(make -s kernelrelease)"
+KREL_LOWER="$(echo "$KREL" | tr '[:upper:]' '[:lower:]')"
 PKGVER="$(make -s kernelversion)-1ogustos1"
 
 echo "[::] Compiling ${KREL} Debian packages (-j${JOBS} with Clang/LLVM + ThinLTO)..."
+export LLVM=1 LLVM_IAS=1
 make -j"${JOBS}" LLVM=1 LLVM_IAS=1 bindeb-pkg \
     LOCALVERSION="" \
-    KDEB_PKGVERSION="$PKGVER"
+    KDEB_PKGVERSION="$PKGVER" \
+    DPKG_FLAGS="-Ppkg.linux-upstream.nokerneldbg"
 
-cp -f "${BUILD_DIR}"/linux-image-${KREL}_*.deb "$OUT_POOL/"
-cp -f "${BUILD_DIR}"/linux-headers-${KREL}_*.deb "$OUT_POOL/"
+cp -f "${BUILD_DIR}"/linux-image-${KREL_LOWER}_*.deb "$OUT_POOL/"
+cp -f "${BUILD_DIR}"/linux-headers-${KREL_LOWER}_*.deb "$OUT_POOL/"
 
 # ------------------------------------------------------------------------------
 # Build linux-image-ogustos & linux-headers-ogustos Meta-Packages
@@ -74,7 +91,7 @@ Version: ${PKGVER}
 Section: kernel
 Priority: required
 Architecture: amd64
-Depends: linux-${kind}-${KREL} (= ${PKGVER})
+Depends: linux-${kind}-${KREL_LOWER} (= ${PKGVER})
 Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
 Description: Latest ogustOS Linux kernel ${kind} meta-package (tracks ${KREL})
 EOF
