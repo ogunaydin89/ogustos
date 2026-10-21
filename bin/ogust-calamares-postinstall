@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ogust-calamares-postinstall — Target Post-Installation Hook for Calamares
+# Invoked by Calamares shellprocess module with @@ROOT@@ as $1 before umount.
+# ==============================================================================
+set -euo pipefail
+
+TARGET_MNT="${1:?ERROR: Target root mountpoint required}"
+
+LIVE_MNT="/run/live/medium"
+for p in /run/live/medium/live/vmlinuz /lib/live/mount/medium/live/vmlinuz; do
+    if [[ -f "$p" ]]; then
+        LIVE_MNT="${p%/live/vmlinuz}"
+        break
+    fi
+done
+
+KVER="$(ls -1 "${TARGET_MNT}/lib/modules" | sort -V | tail -n 1)"
+
+echo "[::] Installing kernel ${KVER} and metadata to ${TARGET_MNT}/boot..."
+mkdir -p "${TARGET_MNT}/boot"
+if [[ -f "${LIVE_MNT}/live/vmlinuz" ]]; then
+    cp -f --no-preserve=ownership,mode "${LIVE_MNT}/live/vmlinuz" "${TARGET_MNT}/boot/vmlinuz-${KVER}"
+elif [[ -f "/boot/vmlinuz-${KVER}" ]]; then
+    cp -f --no-preserve=ownership,mode "/boot/vmlinuz-${KVER}" "${TARGET_MNT}/boot/vmlinuz-${KVER}"
+fi
+
+for f in "/boot/config-${KVER}" "/boot/System.map-${KVER}"; do
+    if [[ -f "$f" ]]; then
+        cp -f --no-preserve=ownership,mode "$f" "${TARGET_MNT}/boot/"
+    fi
+done
+
+# Remove live installer systemd unit from installed system
+rm -f "${TARGET_MNT}/etc/systemd/system/ogust-installer.service" \
+      "${TARGET_MNT}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
+
+# Sync keyboard layout selected in Calamares to KDE Plasma Wayland (kxkbrc) and /etc/vconsole.conf
+XKB_LAYOUT="tr"
+XKB_VARIANT=""
+if [[ -f "${TARGET_MNT}/etc/default/keyboard" ]]; then
+    # shellcheck disable=SC1090
+    source "${TARGET_MNT}/etc/default/keyboard" || true
+    XKB_LAYOUT="${XKBLAYOUT:-tr}"
+    XKB_VARIANT="${XKBVARIANT:-}"
+fi
+
+for cfg_dir in "${TARGET_MNT}/etc/skel/.config" "${TARGET_MNT}"/home/*/.config; do
+    mkdir -p "$cfg_dir"
+    cat > "${cfg_dir}/kxkbrc" <<EOF
+[Layout]
+LayoutList=${XKB_LAYOUT}
+VariantList=${XKB_VARIANT}
+Use=true
+EOF
+    if [[ "$cfg_dir" == "${TARGET_MNT}/home/"* ]]; then
+        user_home="${cfg_dir%/.config}"
+        owner_ug="$(stat -c '%u:%g' "$user_home")"
+        chown -R "$owner_ug" "$cfg_dir"
+    fi
+done
+
+# Sync hardware clock to LOCAL if Windows Boot Manager is present on EFI partition
+if [[ -f "${TARGET_MNT}/boot/EFI/Microsoft/Boot/bootmgfw.efi" || -f "${TARGET_MNT}/boot/efi/EFI/Microsoft/Boot/bootmgfw.efi" ]]; then
+    cat > "${TARGET_MNT}/etc/adjtime" <<'EOF'
+0.0 0.0 0.0
+0
+LOCAL
+EOF
+fi
+
+# Run target chroot tasks: enable UFW, purge live/installer packages, build initramfs, install systemd-boot
+chroot "$TARGET_MNT" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 KVER="$KVER" /bin/bash -e <<'EOF'
+if command -v ufw >/dev/null 2>&1; then
+    ufw default deny incoming || true
+    ufw default allow outgoing || true
+    sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
+fi
+
+# Purge live-boot and Calamares installer packages from the installed OS
+dpkg --purge --no-triggers \
+    live-boot live-boot-initramfs-tools \
+    calamares os-prober grub-common grub2-common 2>/dev/null || true
+rm -rf /etc/calamares
+
+# Build clean target initramfs once (with config-7.3.0-ogustOS present in /boot)
+update-initramfs -c -k "$KVER"
+
+# Install systemd-boot into /boot (or /boot/efi if separate)
+if mountpoint -q /boot/efi; then
+    bootctl --esp-path=/boot/efi --boot-path=/boot install || bootctl --esp-path=/boot/efi --boot-path=/boot --no-variables install
+else
+    bootctl --path=/boot install || bootctl --path=/boot --no-variables install
+fi
+EOF
+
+# Determine root kernel parameters (UUID, optional LUKS crypttab, optional btrfs subvol)
+KERNEL_CMDLINE="amdgpu.gpu_recovery=1 rw quiet"
+CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo 3)"
+case "$CHASSIS_TYPE" in
+    8|9|10|11|14|30|31|32) ;;
+    *) KERNEL_CMDLINE="${KERNEL_CMDLINE} pcie_aspm.policy=performance" ;;
+esac
+
+ROOT_SPEC="$(awk '$2 == "/" && $1 !~ /^#/ {print $1; exit}' "${TARGET_MNT}/etc/fstab")"
+ROOT_FSTYPE="$(awk '$2 == "/" && $1 !~ /^#/ {print $3; exit}' "${TARGET_MNT}/etc/fstab")"
+ROOT_OPTS="$(awk '$2 == "/" && $1 !~ /^#/ {print $4; exit}' "${TARGET_MNT}/etc/fstab")"
+
+BOOT_ROOT_ARGS=""
+if [[ -f "${TARGET_MNT}/etc/crypttab" ]] && grep -qE '^[^#]' "${TARGET_MNT}/etc/crypttab"; then
+    CRYPT_NAME="$(awk '$1 !~ /^#/ && NF >= 2 {print $1; exit}' "${TARGET_MNT}/etc/crypttab")"
+    CRYPT_SRC="$(awk '$1 !~ /^#/ && NF >= 2 {print $2; exit}' "${TARGET_MNT}/etc/crypttab")"
+    BOOT_ROOT_ARGS="cryptdevice=${CRYPT_SRC}:${CRYPT_NAME} root=/dev/mapper/${CRYPT_NAME}"
+elif [[ "$ROOT_SPEC" == UUID=* ]]; then
+    BOOT_ROOT_ARGS="root=${ROOT_SPEC}"
+else
+    ROOT_UUID="$(blkid -s UUID -o value "$ROOT_SPEC" 2>/dev/null || true)"
+    BOOT_ROOT_ARGS="root=UUID=${ROOT_UUID}"
+fi
+
+if [[ "$ROOT_FSTYPE" == "btrfs" ]] && [[ "$ROOT_OPTS" =~ subvol=([^,]+) ]]; then
+    BOOT_ROOT_ARGS="${BOOT_ROOT_ARGS} rootflags=subvol=${BASH_REMATCH[1]}"
+fi
+
+mkdir -p "${TARGET_MNT}/boot/loader/entries"
+cat > "${TARGET_MNT}/boot/loader/loader.conf" <<'EOF'
+default ogustos.conf
+timeout 0
+console-mode max
+editor no
+EOF
+
+cat > "${TARGET_MNT}/boot/loader/entries/ogustos.conf" <<EOF
+title   ogustOS KDE (${KVER})
+linux   /vmlinuz-${KVER}
+initrd  /initrd.img-${KVER}
+options ${BOOT_ROOT_ARGS} ${KERNEL_CMDLINE}
+EOF
+
+sync
+echo "[::] ogust-calamares-postinstall completed cleanly."

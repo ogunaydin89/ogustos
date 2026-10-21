@@ -87,9 +87,12 @@ chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
 
 install -m 0755 "${REPO_ROOT}/bin/ogust" "${PKG_STAGE}/usr/bin/ogust"
 install -m 0755 "${REPO_ROOT}/bin/ogust-install" "${PKG_STAGE}/usr/bin/ogust-install"
+install -m 0755 "${REPO_ROOT}/bin/ogust-calamares-postinstall" "${PKG_STAGE}/usr/bin/ogust-calamares-postinstall"
+install -m 0755 "${REPO_ROOT}/bin/ogust-reboot" "${PKG_STAGE}/usr/bin/ogust-reboot"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-ascii.txt" "${PKG_STAGE}/usr/share/ogustos/ogustos-ascii.txt"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg"
 install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
+install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/etc/calamares/branding/ogustos/ogustos-logo.svg"
 install -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
 ln -sf ../images/3840x2160.jpg "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 

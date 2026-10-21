@@ -45,9 +45,12 @@ cp -L /etc/resolv.conf "${CHROOT_DIR}/etc/resolv.conf"
 
 install -D -m 0755 "${REPO_ROOT}/bin/ogust" "${CHROOT_DIR}/usr/bin/ogust"
 install -D -m 0755 "${REPO_ROOT}/bin/ogust-install" "${CHROOT_DIR}/usr/bin/ogust-install"
+install -D -m 0755 "${REPO_ROOT}/bin/ogust-calamares-postinstall" "${CHROOT_DIR}/usr/bin/ogust-calamares-postinstall"
+install -D -m 0755 "${REPO_ROOT}/bin/ogust-reboot" "${CHROOT_DIR}/usr/bin/ogust-reboot"
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-ascii.txt" "${CHROOT_DIR}/usr/share/ogustos/ogustos-ascii.txt"
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
+install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/etc/calamares/branding/ogustos/ogustos-logo.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
 mkdir -p "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark"
 ln -sf ../images/3840x2160.jpg "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
@@ -115,7 +118,9 @@ dpkg --configure -a
 # Install initramfs & live-boot tools first so kernel installation builds a complete initrd
 apt-get install -y \
     initramfs-tools live-boot live-boot-initramfs-tools zstd \
-    squashfs-tools parted fdisk udev kbd console-setup dosfstools e2fsprogs efibootmgr
+    squashfs-tools parted fdisk udev kbd console-setup dosfstools e2fsprogs efibootmgr \
+    calamares qml6-module-qtquick-window qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+    os-prober cryptsetup cryptsetup-initramfs keyutils
 
 # Install full ogustOS package manifest (with standard Debian Recommends enabled)
 xargs -a /tmp/manifest.list apt-get install -y
@@ -145,11 +150,17 @@ if command -v flatpak >/dev/null 2>&1; then
     flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 fi
 
-# Generate locales
-cat > /etc/locale.gen <<'LOC'
+# Generate full /etc/locale.gen from /usr/share/i18n/SUPPORTED so Calamares offers every world locale
+if [[ -f /usr/share/i18n/SUPPORTED ]]; then
+    sed 's/^/# /' /usr/share/i18n/SUPPORTED > /etc/locale.gen
+    sed -i -E 's/^# (en_GB\.UTF-8 UTF-8|en_US\.UTF-8 UTF-8|tr_TR\.UTF-8 UTF-8)/\1/' /etc/locale.gen
+else
+    cat > /etc/locale.gen <<'LOC'
+en_GB.UTF-8 UTF-8
 en_US.UTF-8 UTF-8
 tr_TR.UTF-8 UTF-8
 LOC
+fi
 locale-gen
 
 # Ensure initramfs is built with live-boot support for 7.3.x-ogustOS
