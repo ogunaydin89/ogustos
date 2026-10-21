@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# zz-ogustos-boot — Automatically updates systemd-boot entry on kernel upgrades
+# ==============================================================================
+set -euo pipefail
+
+KVER="${1:-}"
+[[ -n "$KVER" ]] || exit 0
+[[ -f /boot/loader/entries/ogustos.conf ]] || exit 0
+[[ -f "/boot/vmlinuz-${KVER}" && -f "/boot/initrd.img-${KVER}" ]] || exit 0
+
+OPTS_LINE="$(grep '^options ' /boot/loader/entries/ogustos.conf | head -n 1 || true)"
+[[ -n "$OPTS_LINE" ]] || exit 0
+
+if ! grep -q "/vmlinuz-${KVER}\$" /boot/loader/entries/ogustos.conf 2>/dev/null; then
+    sed 's/^title .*/title   ogustOS KDE (Previous Kernel)/' \
+        /boot/loader/entries/ogustos.conf > /boot/loader/entries/ogustos-previous.conf
+fi
+
+cat > /boot/loader/entries/ogustos.conf <<EOF
+title   ogustOS KDE (${KVER})
+linux   /vmlinuz-${KVER}
+initrd  /initrd.img-${KVER}
+${OPTS_LINE}
+EOF

@@ -18,6 +18,7 @@ TARBALL="linux-firmware-${FW_DATE}.tar.gz"
 if [[ ! -f "$TARBALL" ]]; then
     echo "[::] Downloading linux-firmware-${FW_DATE} from kernel.org..."
     curl -fLO "https://cdn.kernel.org/pub/linux/kernel/firmware/${TARBALL}"
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/firmware/sha256sums.asc" | grep "  ${TARBALL}\$" | sha256sum -c -
 fi
 
 STAGE="${BUILD_DIR}/stage-linux-firmware"

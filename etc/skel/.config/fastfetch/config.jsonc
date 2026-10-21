@@ -4,8 +4,8 @@
     "type": "file",
     "source": "/usr/share/ogustos/ogustos-ascii.txt",
     "color": {
-      "1": "white",
-      "2": "blue"
+      "1": "yellow",
+      "2": "red"
     }
   },
   "modules": [

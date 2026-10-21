@@ -1,6 +1,6 @@
 # ==============================================================================
 # ogustOS System Package Manifest
-# Installed with APT_Install-Recommends="false"
+# Standard Debian Recommends enabled (APT::Install-Recommends="true")
 # ==============================================================================
 
 # --- 1. Base System, Bootloader, Kernel & Firmware ---
@@ -8,6 +8,7 @@ ogustos-base
 linux-image-ogustos
 linux-headers-ogustos
 linux-firmware
+firmware-sof-signed
 amd64-microcode
 intel-microcode
 systemd
@@ -23,47 +24,38 @@ locales
 chrony
 ufw
 network-manager
+wpasupplicant
+wireless-regdb
+iw
+rfkill
+bluez
+bluez-obexd
+avahi-daemon
+libnss-mdns
+fwupd
+bolt
 ca-certificates
 gnupg
+apt-utils
 nala
 
-# --- 2. KDE Plasma Wayland Desktop ---
-plasma-desktop
-plasma-workspace
+# --- 2. Complete KDE Plasma Desktop & Applications Suite (kde-full) ---
+kde-full
+kde-plasma-desktop
+kde-standard
 kwin-wayland
 xwayland
-systemsettings
-powerdevil
-xdg-desktop-portal-kde
-kde-cli-tools
-kde-config-sddm
-kde-config-screenlocker
-kinfocenter
-kmenuedit
-ksystemstats
-plasma-systemmonitor
-kio-fuse
 sddm
 sddm-theme-breeze
+libpam-kwallet5
 breeze
 breeze-gtk-theme
 kde-config-gtk-style
-polkit-kde-agent-1
+xdg-desktop-portal-kde
+xdg-desktop-portal-gtk
+flatpak
+plasma-discover-backend-flatpak
 power-profiles-daemon
-kscreen
-plasma-nm
-plasma-pa
-bluedevil
-kde-spectacle
-dolphin
-kio-extras
-konsole
-kate
-okular
-ark
-ffmpegthumbs
-kdegraphics-thumbnailers
-kmahjongg
 print-manager
 
 # --- 3. Desktop Applications ---
@@ -107,6 +99,10 @@ python3.14-venv
 python3.14-dev
 python3-venv
 python3-pip
+python3-pyqt6
+python3-pil
+python3-ebooklib
+python3-pymupdf
 rocm-opencl-icd
 ocl-icd-libopencl1
 libamdhip64-dev
@@ -131,6 +127,7 @@ proton-ge-custom
 pipewire
 pipewire-pulse
 pipewire-alsa
+libspa-0.2-bluetooth
 libasound2-plugins:i386
 wireplumber
 rtkit
@@ -148,6 +145,11 @@ udisks2
 dosfstools
 exfatprogs
 ntfs-3g
+btrfs-progs
+f2fs-tools
+cryptsetup
+parted
+gdisk
 android-tools-adb
 android-tools-fastboot
 usbutils
@@ -159,11 +161,13 @@ lm-sensors
 zsh
 zsh-autosuggestions
 zsh-syntax-highlighting
+bash-completion
 fzf
 zoxide
 neovim
 fastfetch
 btop
+htop
 nvtop
 eza
 bat
@@ -173,8 +177,29 @@ duf
 plocate
 git
 gh
+openssh-client
+curl
+wget
+rsync
+less
+man-db
+manpages
+file
+psmisc
+lsof
+jq
+tree
+iproute2
+iputils-ping
+bind9-dnsutils
+netcat-openbsd
 yt-dlp
 7zip
+unzip
+zip
+xz-utils
+bzip2
+zstd
 lz4
 pigz
 unrar

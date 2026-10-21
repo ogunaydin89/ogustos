@@ -16,14 +16,14 @@ Built from upstream `kernel.org` sources using **Clang/LLVM** with **ThinLTO** (
 - **Built-In Core Hotpaths (`=y`):** `ext4`, `nvme`, `zram` (`lz4`), `ntsync` (`/dev/ntsync`), `amd_pstate` (`active`), and `intel_pstate` linked directly into `vmlinux` for cross-file ThinLTO inlining.
 - **Memory Management:** Multi-Gen LRU (`CONFIG_LRU_GEN_ENABLED=y`), `madvise` Transparent Hugepages, and `zram` (`lz4`) swap.
 
-### 2. Pure Wayland Desktop & Low-Latency Audio/Graphics
-- **Desktop:** KDE Plasma 6 Wayland (`kwin-wayland`, `sddm`, `dbus-broker`) with no legacy X11 session clutter or background indexing daemons (`Baloo` and `Akonadi` excluded).
-- **Audio:** PipeWire and WirePlumber configured for `48000 Hz` / `64`-sample quantum (`1.33 ms`).
+### 2. Complete KDE Plasma Wayland Suite (`kde-full`) & Low-Latency Audio/Graphics
+- **Desktop:** Full KDE Plasma 6 Wayland suite (`kde-full`, `kwin-wayland`, `sddm`, `dbus-broker`) with all official KDE utilities, addons, and applications included out of the box, plus Flatpak + Flathub integration for KDE Discover.
+- **Audio:** PipeWire and WirePlumber configured for `48000 Hz` (`64`-sample `1.33 ms` minimum quantum for games/pro-audio, `256`-sample default quantum) with full Bluetooth A2DP/HFP (`libspa-0.2-bluetooth`) and Intel SOF audio support.
 - **Graphics & Gaming:** Mesa Vulkan (`radv`, `anv`, `lvp`) and VA-API (`64-bit` + `32-bit`), Steam, and **Proton-GE** pre-installed with `PROTON_USE_NTSYNC=1` and `RADV_PERFTEST=gpl`.
 - **Development Toolchain:** Pre-installed `clang`, `llvm`, `lld`, `gcc`, `g++`, `mold`, `ccache`, `cmake`, `meson`, `ninja`, `git`, `gh`, multi-slot Python (`3.13`, `3.14`), and ROCm OpenCL/HIP runtime.
 
 ### 3. Multi-Version APT Repository & `ogust` CLI
-Packages are installed strictly with `--no-install-recommends` across a three-tier repository hierarchy (`ogustOS` `main`/`apps`, Debian Testing, and optional third-party repositories). The `ogustOS` repository indexes all package versions with `--multiversion` so previous releases remain available for rollback.
+Packages are managed across a three-tier repository hierarchy (`ogustOS` `main`/`apps`, Debian Testing, and optional third-party repositories) with standard Debian `Recommends` enabled for complete hardware/desktop integration. The `ogustOS` repository indexes all package versions with `--multiversion` so previous releases remain available for rollback.
 
 | Command | Description |
 | :--- | :--- |
@@ -44,7 +44,13 @@ The installation media boots directly (`timeout 0`) into `ogust-install` on `tty
 4. System locale
 5. Username & password
 
-The installer extracts the pre-built `filesystem.squashfs` image onto `ext4` (`rw,noatime,commit=60,discard`), generates a host-specific `initramfs`, and configures `systemd-boot`.
+The installer extracts the pre-built `filesystem.squashfs` image onto `ext4` (`rw,noatime,commit=60` with weekly `fstrim.timer`), generates the `initramfs`, and configures `systemd-boot` (automatically creating a `1024M` `XBOOTLDR` `/boot` partition if dual-booting alongside a small Windows EFI partition).
+
+---
+
+### Requirements
+- 64-bit UEFI firmware (legacy BIOS/CSM boot is not supported) and **Secure Boot disabled** (the bundled `systemd-boot` and `7.3.x-ogustOS` kernel are not signed with a Secure Boot key).
+- At least 32 GB of storage and 4 GB of RAM (8 GB recommended for the full KDE desktop).
 
 ---
 
@@ -52,7 +58,7 @@ The installer extracts the pre-built `filesystem.squashfs` image onto `ext4` (`r
 
 ```text
 .
-├── apt/          # APT sources, Pin-Priority rules, and no-recommends configuration
+├── apt/          # APT sources, Pin-Priority rules, and hardened APT configuration
 ├── bin/          # ogust CLI wrapper and ogust-install text installer
 ├── branding/     # Vector logos, wordmark, fastfetch ASCII art, and default wallpaper
 ├── certs/        # Optional CA certificates for institutional networks

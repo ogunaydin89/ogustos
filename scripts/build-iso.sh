@@ -2,7 +2,7 @@
 # ==============================================================================
 # build-iso.sh — End-to-End ogustOS Offline SquashFS & Instant-Boot USB Builder
 # Boots straight into ogust-install on tty1 (timeout 0, no boot menu, no Live GUI)
-# Pre-installs 7.3-ogustOS Kernel, KDE Plasma 6.8+ Wayland, Chrome, Steam, & agy.
+# Pre-installs 7.3-ogustOS Kernel, KDE Plasma 6.8+ Wayland, Chrome, and Steam.
 # ==============================================================================
 set -euo pipefail
 
@@ -24,7 +24,9 @@ mkdir -p "$WORK_DIR" "${ISO_DIR}/live" "${ISO_DIR}/EFI/BOOT" "${ISO_DIR}/loader/
 # ------------------------------------------------------------------------------
 if [[ ! -d "${CHROOT_DIR}/etc" ]]; then
     echo "[::] Bootstrapping Debian Testing base rootfs into ${CHROOT_DIR}..."
-    debootstrap --no-check-gpg --arch=amd64 --variant=minbase \
+    KEYRING_ARG="--no-check-gpg"
+    [[ -f /usr/share/keyrings/debian-archive-keyring.gpg ]] && KEYRING_ARG="--keyring=/usr/share/keyrings/debian-archive-keyring.gpg"
+    debootstrap "$KEYRING_ARG" --arch=amd64 --variant=minbase \
         --include=ca-certificates,curl,gnupg,debian-archive-keyring,locales \
         testing "$CHROOT_DIR" https://deb.debian.org/debian
 fi
@@ -33,11 +35,12 @@ fi
 # 2. Overlay ogustOS Configurations, Branding, APT Pinning & Scripts
 # ------------------------------------------------------------------------------
 echo "[::] Applying ogustOS /etc, APT 3-repo pinning, branding, and CLI tools..."
+rm -f "${CHROOT_DIR}/etc/sysctl.d/99-disable-ipv6.conf"
 cp -a --no-preserve=ownership "${REPO_ROOT}/etc/." "${CHROOT_DIR}/etc/"
 ln -sf ../usr/lib/os-release "${CHROOT_DIR}/etc/os-release"
 cp -a --no-preserve=ownership "${REPO_ROOT}/apt/." "${CHROOT_DIR}/etc/apt/"
 chown -R 0:0 "${CHROOT_DIR}/etc"
-rm -f "${CHROOT_DIR}/etc/apt/sources.list"
+rm -f "${CHROOT_DIR}/etc/apt/sources.list" "${CHROOT_DIR}/etc/resolv.conf"
 cp -L /etc/resolv.conf "${CHROOT_DIR}/etc/resolv.conf"
 
 install -D -m 0755 "${REPO_ROOT}/bin/ogust" "${CHROOT_DIR}/usr/bin/ogust"
@@ -46,8 +49,10 @@ install -D -m 0644 "${REPO_ROOT}/branding/ogustos-ascii.txt" "${CHROOT_DIR}/usr/
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
+mkdir -p "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark"
+ln -sf ../images/3840x2160.jpg "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 
-if [[ -x /usr/local/bin/agy ]]; then
+if [[ "${BUNDLE_AGY:-0}" == "1" && -x /usr/local/bin/agy ]]; then
     echo "[::] Bundling Antigravity CLI (/usr/local/bin/agy)..."
     install -D -m 0755 /usr/local/bin/agy "${CHROOT_DIR}/usr/local/bin/agy"
 fi
@@ -104,20 +109,32 @@ echo "steam steam/license note ''" | debconf-set-selections
 apt-get update
 
 # Reinstall updated ogustos-base first (diverts /usr/lib/os-release & provides xserver)
-apt-get install -y --reinstall --no-install-recommends ogustos-base
+apt-get install -y --reinstall ogustos-base
 dpkg --configure -a
 
 # Install initramfs & live-boot tools first so kernel installation builds a complete initrd
-apt-get install -y --no-install-recommends \
+apt-get install -y \
     initramfs-tools live-boot live-boot-initramfs-tools zstd \
     squashfs-tools parted fdisk udev kbd console-setup dosfstools e2fsprogs efibootmgr
 
-# Install full ogustOS package manifest (--no-install-recommends enforced)
-xargs -a /tmp/manifest.list apt-get install -y --no-install-recommends
-
-# Remove legacy Xorg server packages if any were pulled in earlier
-apt-get purge -y 'xserver-xorg*' 2>/dev/null || true
+# Install full ogustOS package manifest (with standard Debian Recommends enabled)
+xargs -a /tmp/manifest.list apt-get install -y
+apt-get install -y --reinstall ogustos-base emerge-pdf libreoffice-fresh
 apt-get autoremove -y 2>/dev/null || true
+
+# Re-run ogustos-base postinst so wallpaper & binary symlinks (bat, fd) are applied over kde-full
+/var/lib/dpkg/info/ogustos-base.postinst configure
+
+# Pre-build EmergePDF offline virtualenv (with pillow-heif) so first launch is instant & 100% offline
+if [[ -d /usr/share/emerge-pdf && ! -x /usr/share/emerge-pdf/venv/bin/python ]]; then
+    python3 -m venv --system-site-packages /usr/share/emerge-pdf/venv
+    /usr/share/emerge-pdf/venv/bin/pip install --disable-pip-version-check --no-input pillow-heif || true
+fi
+
+# Pre-configure Flathub remote for KDE Discover
+if command -v flatpak >/dev/null 2>&1; then
+    flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+fi
 
 # Generate locales
 cat > /etc/locale.gen <<'LOC'
@@ -133,17 +150,56 @@ update-initramfs -c -k "$KVER" || update-initramfs -u -k "$KVER"
 # Remove any legacy X11 desktop session files so SDDM offers strictly Plasma Wayland
 rm -f /usr/share/xsessions/*.desktop
 
-# Enable core services and mask network-wait-online
-systemctl enable sddm NetworkManager systemd-resolved ufw chrony cups 2>/dev/null || true
+# Enable core services, Bluetooth, mDNS printer discovery, weekly SSD fstrim, and UFW firewall
+systemctl enable sddm NetworkManager systemd-resolved bluetooth avahi-daemon ufw chrony cups fstrim.timer 2>/dev/null || true
 systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
+if command -v ufw >/dev/null 2>&1; then
+    ufw default deny incoming || true
+    ufw default allow outgoing || true
+    sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf 2>/dev/null || true
+fi
 
 rm -f /usr/sbin/policy-rc.d /tmp/manifest.list
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 EOF
 
-# Restore canonical 01-ogustos.sources and install live USB tty1 installer unit
+# Stage local on-disk /var/lib/ogustos-repo (apps + base meta-packages) so
+# 'ogust up' and offline 'ogust in meb-sertifika' always work without network/TLS chicken-and-egg
+mkdir -p "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main" "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps"
+cp -a "${REPO_ROOT}/dist/repo/pool/apps/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps/"
+cp -a "${REPO_ROOT}/dist/repo/pool/main/ogustos-base_"*.deb \
+      "${REPO_ROOT}/dist/repo/pool/main/linux-image-ogustos_"*.deb \
+      "${REPO_ROOT}/dist/repo/pool/main/linux-headers-ogustos_"*.deb \
+      "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main/" 2>/dev/null || true
+
 cp -f "${REPO_ROOT}/apt/sources.list.d/01-ogustos.sources" "${CHROOT_DIR}/etc/apt/sources.list.d/01-ogustos.sources"
+
+chroot "$CHROOT_DIR" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 /bin/bash -e <<'EOF'
+cd /var/lib/ogustos-repo
+mkdir -p dists/stable/main/binary-amd64 dists/stable/apps/binary-amd64 \
+         dists/stable/main/binary-i386  dists/stable/apps/binary-i386
+for comp in main apps; do
+    for arch in amd64 i386; do
+        dpkg-scanpackages --multiversion --arch "$arch" "pool/${comp}" > "dists/stable/${comp}/binary-${arch}/Packages"
+        gzip -9c "dists/stable/${comp}/binary-${arch}/Packages" > "dists/stable/${comp}/binary-${arch}/Packages.gz"
+    done
+done
+apt-ftparchive \
+    -o APT::FTPArchive::Release::Origin="ogustOS" \
+    -o APT::FTPArchive::Release::Label="ogustOS" \
+    -o APT::FTPArchive::Release::Suite="stable" \
+    -o APT::FTPArchive::Release::Codename="stable" \
+    -o APT::FTPArchive::Release::Architectures="amd64 i386" \
+    -o APT::FTPArchive::Release::Components="main apps" \
+    release dists/stable > dists/stable/Release
+
+# Pre-index the local on-disk repository in /var/lib/apt/lists so offline installs work on first boot
+apt-get update -o Dir::Etc::sourcelist="sources.list.d/01-ogustos.sources" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+
+# Restore systemd-resolved stub symlink so DNSOverTLS & NetworkManager DNS work dynamically on target machines
+ln -sf ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+EOF
 
 cat > "${CHROOT_DIR}/etc/systemd/system/ogust-installer.service" <<'EOF'
 [Unit]
@@ -172,6 +228,8 @@ ln -sf /etc/systemd/system/ogust-installer.service "${CHROOT_DIR}/etc/systemd/sy
 
 cleanup_iso_mounts
 rmdir "${CHROOT_DIR}/tmp/ogustos-repo" 2>/dev/null || true
+find "$CHROOT_DIR" -uid 1000 -exec chown -h 0:0 {} +
+find "$CHROOT_DIR" -gid 1000 -exec chgrp -h 0 {} +
 
 # ------------------------------------------------------------------------------
 # 4. Prepare Instant-Boot USB Kernel & Initrd (timeout 0 -> tty1 -> ogust-install)
@@ -233,6 +291,6 @@ xorriso -as mkisofs \
     -output "$OUT_ISO" \
     "$ISO_DIR"
 
-echo "────────────────────────────────────────────────────────────────"
+echo "----------------------------------------------------------------"
 echo "[::] Bootable ogustOS ISO built: ${OUT_ISO}"
 ls -lh "$OUT_ISO"

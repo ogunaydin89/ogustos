@@ -1,6 +1,6 @@
 Types: deb
-URIs: https://ogunaydin89.github.io/ogustos-repo
+URIs: file:///var/lib/ogustos-repo
 Suites: stable
 Components: main apps
 Architectures: amd64 i386
-Signed-By: /usr/share/keyrings/ogustos-archive-keyring.gpg
+Trusted: yes

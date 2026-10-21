@@ -16,8 +16,8 @@ mkdir -p "$BUILD_DIR" "$OUT_POOL"
 cd "$BUILD_DIR"
 
 export DEB_BUILD_OPTIONS="parallel=${JOBS} nocheck"
-export DEB_CFLAGS_SET="-O2 -pipe"
-export DEB_CXXFLAGS_SET="-O2 -pipe"
+export DEB_CFLAGS_SET="-O2 -march=x86-64 -mtune=generic -pipe"
+export DEB_CXXFLAGS_SET="-O2 -march=x86-64 -mtune=generic -pipe"
 export DEB_LDFLAGS_SET="-Wl,-O1 -Wl,--as-needed -fuse-ld=mold"
 
 echo "[::] Fetching latest Mesa packaging & source for amd64 and i386..."

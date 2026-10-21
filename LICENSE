@@ -34,7 +34,7 @@ scheduler (`firelzrd/bore-scheduler`), and TCP BBRv3 (`google/bbr`).
 Under **Section 5 of the GNU General Public License (v2 and v3, "Mere
 Aggregation")**, inclusion of upstream packages from Debian, Pardus, and
 third-party repositories (including `linux-firmware`, `amd64-microcode`,
-`intel-microcode`, `steam-installer`, `google-chrome-stable`, and `agy`) in an
+`intel-microcode`, `steam-installer`, and `google-chrome-stable`) in an
 `ogustOS` installation image (`.iso` / `filesystem.squashfs`) constitutes an
 aggregate distribution. Each individual software package retains its respective
 upstream license as documented in `/usr/share/doc/<package>/copyright` on the

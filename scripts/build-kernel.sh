@@ -21,6 +21,7 @@ TARBALL="linux-${KVER}.tar.xz"
 if [[ ! -f "$TARBALL" ]]; then
     echo "[::] Downloading Linux ${KVER} from kernel.org..."
     curl -fLO "https://cdn.kernel.org/pub/linux/kernel/v7.x/${TARBALL}"
+    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" | grep "  ${TARBALL}\$" | sha256sum -c -
 fi
 
 # Fetch Cachy + BBRv3 + BORE + Clang DKMS patches if not already cached in repo
@@ -70,6 +71,10 @@ PKGVER="$(make -s kernelversion)-1ogustos1"
 
 echo "[::] Compiling ${KREL} Debian packages (-j${JOBS} with Clang/LLVM + ThinLTO)..."
 export LLVM=1 LLVM_IAS=1
+export KBUILD_BUILD_USER="ogust"
+export KBUILD_BUILD_HOST="ogustos"
+export DEBFULLNAME="ogustOS"
+export DEBEMAIL="builder@ogustos.local"
 make -j"${JOBS}" LLVM=1 LLVM_IAS=1 bindeb-pkg \
     LOCALVERSION="" \
     KDEB_PKGVERSION="$PKGVER" \

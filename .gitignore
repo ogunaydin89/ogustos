@@ -11,3 +11,6 @@ work/
 *.squashfs
 *.tar.xz
 *.tar.gz
+*.log
+*.orig
+*.rej

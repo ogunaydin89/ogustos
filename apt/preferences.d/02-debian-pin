@@ -1,9 +1,9 @@
+# Block stock Debian 250 Hz kernels from ever replacing linux-image-*-ogustOS
+Package: linux-image-amd64 linux-headers-amd64 linux-image-6.* linux-headers-6.* linux-image-7.*-amd64* linux-headers-7.*-amd64* linux-image-7.*-common* linux-headers-7.*-common*
+Pin: release o=Debian
+Pin-Priority: -1
+
 # Tier 2: Debian Base Repository (Core OS & Userland)
 Package: *
 Pin: release o=Debian
 Pin-Priority: 900
-
-# Block stock Debian 250 Hz kernels from ever replacing linux-image-*-ogustOS
-Package: linux-image-amd64 linux-headers-amd64 linux-image-6.* linux-headers-6.*
-Pin: release o=Debian
-Pin-Priority: -1

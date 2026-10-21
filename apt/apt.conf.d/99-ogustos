@@ -1,8 +1,10 @@
-// ogustOS Zero-Bloat APT Configuration
-APT::Install-Recommends "false";
+// ogustOS Hardened APT Configuration
+APT::Install-Recommends "true";
 APT::Install-Suggests "false";
-APT::AutoRemove::RecommendsImportant "false";
+APT::AutoRemove::RecommendsImportant "true";
 APT::AutoRemove::SuggestsImportant "false";
+Acquire::AllowInsecureRepositories "false";
+Acquire::AllowDowngradeToInsecureRepositories "false";
 Acquire::Queue-Mode "access";
 Acquire::Retries "3";
 Dpkg::Options {

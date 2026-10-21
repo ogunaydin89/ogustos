@@ -1,4 +1,5 @@
 [General]
+BrowserApplication=google-chrome.desktop
 ColorScheme=BreezeDark
 
 [KDE]
@@ -7,3 +8,6 @@ SingleClick=false
 
 [Icons]
 Theme=breeze-dark
+
+[UserFeedback]
+FeedbackLevel=0
