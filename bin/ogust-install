@@ -56,7 +56,15 @@ else
     LIVE_DEV="$(sed 's/[0-9]*$//;s/p$//' <<<"$LIVE_SRC")"
 fi
 
-mapfile -t DISKS < <(lsblk -d -n -p -o NAME,SIZE,MODEL,TYPE | awk '$4=="disk" {print $1" "$2" "$3" "$4}' | grep -v "^${LIVE_DEV:-/dev/null} " || true)
+mapfile -t DISKS < <(
+    lsblk -d -n -p -o TYPE,NAME,SIZE,MODEL |
+    awk -v live="${LIVE_DEV:-/dev/null}" '
+        $1 == "disk" && $2 != live && $2 !~ /^\/dev\/(zram|loop|ram|fd|sr)/ {
+            sub(/^disk[[:space:]]+/, "")
+            print
+        }
+    '
+)
 
 if [[ ${#DISKS[@]} -eq 0 ]]; then
     echo "ERROR: No target storage drives detected."
@@ -70,7 +78,7 @@ for i in "${!DISKS[@]}"; do
     idx=$((i + 1))
     disk_name="$(awk '{print $1}' <<<"${DISKS[$i]}")"
     disk_size="$(awk '{print $2}' <<<"${DISKS[$i]}")"
-    disk_model="$(cut -d' ' -f3- <<<"${DISKS[$i]}" | sed 's/ disk$//')"
+    disk_model="$(awk '{$1=""; $2=""; sub(/^[[:space:]]+/, ""); print}' <<<"${DISKS[$i]}")"
     printf "  %d) %-12s %-8s %s\n" "$idx" "${disk_name#/dev/}" "$disk_size" "$disk_model"
 done
 echo "  0) Cancel and power off"
