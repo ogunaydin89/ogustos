@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# ==============================================================================
-# ogust-reboot — RAM-safe reboot helper for Calamares finished module
-# ==============================================================================
-sync
-echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
-exec 9>/proc/sysrq-trigger 2>/dev/null || true
-systemctl -i reboot 2>/dev/null || printf 'b\n' >&9

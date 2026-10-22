@@ -1,7 +1,0 @@
-# KEYBOARD CONFIGURATION FILE
-# Default pre-selected in Calamares: Turkish Q (all world layouts selectable in GUI)
-XKBMODEL="pc105"
-XKBLAYOUT="tr"
-XKBVARIANT=""
-XKBOPTIONS=""
-BACKSPACE="guess"

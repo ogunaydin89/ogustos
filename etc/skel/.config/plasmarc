@@ -1,9 +1,0 @@
-[Theme]
-name=breeze-dark
-
-[Wallpapers]
-defaultWallpaperTheme=ogustOS
-defaultFileSuffix=.jpg
-defaultWidth=3840
-defaultHeight=2160
-usersWallpapers=/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg

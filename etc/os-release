@@ -1,9 +1,0 @@
-PRETTY_NAME="ogustOS KDE"
-NAME="ogustOS"
-VERSION_ID="1.0"
-VERSION="1.0 (KDE Wayland)"
-ID=ogustos
-ID_LIKE="debian"
-HOME_URL="https://github.com/ogunaydin89/ogustos"
-BUG_REPORT_URL="https://github.com/ogunaydin89/ogustos/issues"
-LOGO="ogustos-logo"

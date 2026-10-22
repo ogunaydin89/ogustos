@@ -1,6 +1,0 @@
-Types: deb
-URIs: file:///var/lib/ogustos-repo
-Suites: stable
-Components: main apps
-Architectures: amd64 i386
-Trusted: yes
