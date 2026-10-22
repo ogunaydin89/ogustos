@@ -134,6 +134,15 @@ if [[ -f /usr/sbin/unix_chkpwd ]] && getent group shadow >/dev/null 2>&1; then
     chown root:shadow /usr/sbin/unix_chkpwd
     chmod 2755 /usr/sbin/unix_chkpwd
 fi
+
+# Prevent non-interactive PAM workers (kde-fingerprint, kde-smartcard) from falling through
+# missing pam_fprintd.so / pam_sss.so into pam_kwallet5.so password prompt inside kscreenlocker_greet
+if [[ -f /etc/pam.d/kde-fingerprint ]]; then
+    sed -i 's/^auth[[:space:]]\+required[[:space:]]\+pam_fprintd\.so/auth\trequisite\tpam_fprintd.so/' /etc/pam.d/kde-fingerprint || true
+fi
+if [[ -f /etc/pam.d/kde-smartcard ]]; then
+    sed -i 's/^auth[[:space:]]\+required[[:space:]]\+pam_sss\.so/auth    requisite       pam_sss.so/' /etc/pam.d/kde-smartcard || true
+fi
 EOF
 chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
 

@@ -74,6 +74,11 @@ plasma-discover-backend-flatpak
 power-profiles-daemon
 print-manager
 colord-kde
+libxcb-cursor0
+qml6-module-org-kde-charts
+qml6-module-org-kde-kirigamiaddons-tableview
+plasma-widgets-addons
+plasma-runners-addons
 
 # --- 3. Desktop Applications ---
 google-chrome-stable
@@ -83,6 +88,8 @@ libreoffice-l10n-tr
 viewnior
 krita
 emerge-pdf
+imagemagick
+gettext
 
 # --- 4. Compiler Toolchain, Build System, Python & Compute ---
 clang
