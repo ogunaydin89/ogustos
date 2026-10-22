@@ -21,10 +21,11 @@ mkdir -p "${PKG_STAGE}/usr/share/sddm/themes/breeze"
 
 cat > "${PKG_STAGE}/DEBIAN/control" <<'EOF'
 Package: ogustos-base
-Version: 1.0.2-1ogustos1
+Version: 1.0.3-1ogustos1
 Section: admin
 Priority: required
 Architecture: all
+Recommends: fakeroot
 Provides: xserver
 Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
 Description: Core configuration, APT pinning, branding, and CLI for ogustOS KDE
@@ -77,6 +78,12 @@ if ! dpkg-divert --list /etc/initramfs/post-update.d/systemd-boot | grep -q ogus
 fi
 rm -f /etc/initramfs/post-update.d/systemd-boot
 
+# Divert Discover background notifier autostart so DiscoverNotifier + packagekitd never consume idle RAM
+if ! dpkg-divert --list /etc/xdg/autostart/org.kde.discover.notifier.desktop | grep -q ogustos-base; then
+    dpkg-divert --package ogustos-base --divert /etc/xdg/autostart/org.kde.discover.notifier.desktop.disabled --rename /etc/xdg/autostart/org.kde.discover.notifier.desktop >/dev/null 2>&1 || true
+fi
+rm -f /etc/xdg/autostart/org.kde.discover.notifier.desktop /etc/xdg/autostart/org.kde.kalendarac.desktop
+
 # Remove any untracked /usr/local/bin/ogust* copies so /usr/bin/ogust is never shadowed
 rm -f /usr/local/bin/ogust /usr/local/bin/ogust-install /usr/local/bin/ogust-calamares-postinstall /usr/local/bin/ogust-reboot
 
@@ -113,9 +120,20 @@ fi
 rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
 
 # Mask drkonqi coredump units globally since coredumps are disabled by design
-mkdir -p /etc/systemd/user
+mkdir -p /etc/systemd/user /etc/systemd/system
 ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-launcher.socket
 ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-pickup.service
+ln -sf /dev/null /etc/systemd/system/drkonqi-coredump-processor@.service
+
+# Guarantee /etc/shadow and /etc/gshadow are root:shadow (0640) so unprivileged unix_chkpwd (kscreenlocker_greet) works
+if getent group shadow >/dev/null 2>&1; then
+    chown root:shadow /etc/shadow /etc/gshadow /etc/shadow- /etc/gshadow- 2>/dev/null || true
+    chmod 0640 /etc/shadow /etc/gshadow /etc/shadow- /etc/gshadow- 2>/dev/null || true
+fi
+if [[ -f /usr/sbin/unix_chkpwd ]] && getent group shadow >/dev/null 2>&1; then
+    chown root:shadow /usr/sbin/unix_chkpwd
+    chmod 2755 /usr/sbin/unix_chkpwd
+fi
 EOF
 chmod 0755 "${PKG_STAGE}/DEBIAN/postinst"
 
@@ -147,7 +165,7 @@ mkdir -p "${OUT_DIR}/dists/stable/main/binary-amd64" "${OUT_DIR}/dists/stable/ap
 mkdir -p "${OUT_DIR}/dists/stable/main/binary-i386"  "${OUT_DIR}/dists/stable/apps/binary-i386"
 
 rm -f "${OUT_DIR}/pool/main/ogustos-base_"*.deb
-dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.2-1ogustos1_all.deb"
+dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.3-1ogustos1_all.deb"
 
 # Build custom apps (emerge-pdf, etc.)
 if [[ -x "${REPO_ROOT}/scripts/build-apps.sh" ]]; then

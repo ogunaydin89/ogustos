@@ -39,10 +39,26 @@ gnupg
 apt-utils
 nala
 
-# --- 2. Complete KDE Plasma Desktop & Applications Suite (kde-full) ---
-kde-full
+# --- 2. Curated KDE Plasma Desktop & Core Utilities (Zero Akonadi/PIM Bloat) ---
 kde-plasma-desktop
-kde-standard
+dolphin
+dolphin-plugins
+konsole
+kate
+okular
+ark
+kde-spectacle
+kinfocenter
+plasma-systemmonitor
+kwalletmanager
+filelight
+kcalc
+partitionmanager
+kfind
+kdegraphics-thumbnailers
+ffmpegthumbs
+kio-admin
+kio-extras
 kwin-wayland
 xwayland
 sddm
@@ -81,6 +97,7 @@ cmake
 mold
 ccache
 build-essential
+fakeroot
 dpkg-dev
 devscripts
 flex

@@ -166,6 +166,16 @@ for pam_svc in systemd-user polkit-1; do
     fi
 done
 
+# Guarantee /etc/shadow and /etc/gshadow are root:shadow (0640) so unprivileged unix_chkpwd (kscreenlocker_greet) works
+if getent group shadow >/dev/null 2>&1; then
+    chown root:shadow /etc/shadow /etc/gshadow /etc/shadow- /etc/gshadow- 2>/dev/null || true
+    chmod 0640 /etc/shadow /etc/gshadow /etc/shadow- /etc/gshadow- 2>/dev/null || true
+fi
+if [[ -f /usr/sbin/unix_chkpwd ]] && getent group shadow >/dev/null 2>&1; then
+    chown root:shadow /usr/sbin/unix_chkpwd
+    chmod 2755 /usr/sbin/unix_chkpwd
+fi
+
 # Build clean target initramfs once (with config-7.3.0-ogustOS present in /boot)
 update-initramfs -c -k "$KVER"
 dpkg --configure -a
@@ -192,7 +202,7 @@ touch /etc/.updated /var/.updated
 EOF
 
 # Determine root kernel parameters (UUID, optional LUKS crypttab, optional btrfs subvol)
-KERNEL_CMDLINE="amdgpu.gpu_recovery=1 rw quiet"
+KERNEL_CMDLINE="amdgpu.gpu_recovery=1 tsc=reliable rw quiet"
 CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo 3)"
 case "$CHASSIS_TYPE" in
     8|9|10|11|14|30|31|32) ;;
@@ -226,7 +236,7 @@ cat > "${TARGET_MNT}/boot/loader/loader.conf" <<'EOF'
 default ogustos.conf
 timeout 0
 console-mode max
-editor no
+editor yes
 EOF
 
 cat > "${TARGET_MNT}/boot/loader/entries/ogustos.conf" <<EOF

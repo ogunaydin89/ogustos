@@ -40,6 +40,8 @@ cp -a --no-preserve=ownership "${REPO_ROOT}/etc/." "${CHROOT_DIR}/etc/"
 ln -sf ../usr/lib/os-release "${CHROOT_DIR}/etc/os-release"
 cp -a --no-preserve=ownership "${REPO_ROOT}/apt/." "${CHROOT_DIR}/etc/apt/"
 chown -R 0:0 "${CHROOT_DIR}/etc"
+chgrp 42 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
+chmod 0640 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
 chmod 0440 "${CHROOT_DIR}/etc/sudoers.d/99-ogustos-nopasswd" 2>/dev/null || true
 rm -f "${CHROOT_DIR}/etc/apt/sources.list" "${CHROOT_DIR}/etc/resolv.conf" \
       "${CHROOT_DIR}/usr/local/bin/ogust" \
@@ -128,6 +130,11 @@ apt-get install -y \
     os-prober cryptsetup cryptsetup-initramfs keyutils
 
 # Install full ogustOS package manifest (with standard Debian Recommends enabled)
+BLOAT_PKGS="$(dpkg -l | awk '/^ii/ {print $2}' | grep -E '^(kde-full|kde-standard|kdeedu|kdegames|kdepim|akonadi|kmail|kalendarac|merkuro|korganizer|kaddressbook|kalarm|dragonplayer|juk|k3b|kamera|kmag|kmousetool|kmouth|konqueror|ktimetracker|sweeper|libakonadi|libkpim)' || true)"
+if [[ -n "$BLOAT_PKGS" ]]; then
+    # shellcheck disable=SC2086
+    apt-get purge -y $BLOAT_PKGS
+fi
 xargs -a /tmp/manifest.list apt-get install -y
 apt-get dist-upgrade -y
 apt-get install -y --allow-downgrades viewnior/forky 2>/dev/null || apt-get install -y --allow-downgrades viewnior/testing 2>/dev/null || true
@@ -137,11 +144,16 @@ dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
         /tmp/ogustos-repo/pool/apps/emerge-pdf_*.deb \
         /tmp/ogustos-repo/pool/apps/libreoffice-fresh_*.deb
 apt-get purge -y 'exim4*' 'courier*' 2>/dev/null || true
+BLOAT_PKGS="$(dpkg -l | awk '/^ii/ {print $2}' | grep -E '^(kde-full|kde-standard|kdeedu|kdegames|kdepim|akonadi|kmail|kalendarac|merkuro|korganizer|kaddressbook|kalarm|dragonplayer|juk|k3b|kamera|kmag|kmousetool|kmouth|konqueror|ktimetracker|sweeper|libakonadi|libkpim)' || true)"
+if [[ -n "$BLOAT_PKGS" ]]; then
+    # shellcheck disable=SC2086
+    apt-get purge -y $BLOAT_PKGS
+fi
 dpkg --purge --force-all courier-mta courier-base courier-authdaemon courier-authlib libcourier-authlib0 libcourier-unicode12 2>/dev/null || true
 userdel -r courier 2>/dev/null || true
 groupdel courier 2>/dev/null || true
-rm -rf /etc/courier /var/lib/courier
-apt-get autoremove -y 2>/dev/null || true
+rm -rf /etc/courier /var/lib/courier /etc/xdg/autostart/org.kde.kalendarac.desktop
+apt-get autoremove --purge -y 2>/dev/null || true
 rc_pkgs="$(dpkg -l | awk '/^rc/ {print $2}')"
 if [[ -n "$rc_pkgs" ]]; then
     # shellcheck disable=SC2086
@@ -251,10 +263,7 @@ EOF
 rm -rf "${CHROOT_DIR}/var/lib/ogustos-repo/pool"
 mkdir -p "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main" "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps"
 cp -a "${REPO_ROOT}/dist/repo/pool/apps/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps/"
-cp -a "${REPO_ROOT}/dist/repo/pool/main/ogustos-base_"*.deb \
-      "${REPO_ROOT}/dist/repo/pool/main/linux-image-"*.deb \
-      "${REPO_ROOT}/dist/repo/pool/main/linux-headers-"*.deb \
-      "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main/" 2>/dev/null || true
+cp -a "${REPO_ROOT}/dist/repo/pool/main/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main/" 2>/dev/null || true
 
 cp -f "${REPO_ROOT}/apt/sources.list.d/01-ogustos.sources" "${CHROOT_DIR}/etc/apt/sources.list.d/01-ogustos.sources"
 
@@ -319,6 +328,17 @@ cleanup_iso_mounts
 rmdir "${CHROOT_DIR}/tmp/ogustos-repo" 2>/dev/null || true
 find "$CHROOT_DIR" -uid 1000 -exec chown -h 0:0 {} +
 find "$CHROOT_DIR" -gid 1000 -exec chgrp -h 0 {} +
+# Enforce root:shadow (gid 42, mode 0640) on /etc/shadow and /etc/gshadow so kscreenlocker_greet / unix_chkpwd works
+chown 0:42 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
+chmod 0640 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
+if [[ -f "${CHROOT_DIR}/usr/sbin/unix_chkpwd" ]]; then
+    chown 0:42 "${CHROOT_DIR}/usr/sbin/unix_chkpwd"
+    chmod 2755 "${CHROOT_DIR}/usr/sbin/unix_chkpwd"
+fi
+chroot "$CHROOT_DIR" ldconfig
+chroot "$CHROOT_DIR" systemd-hwdb update 2>/dev/null || true
+chroot "$CHROOT_DIR" journalctl --update-catalog 2>/dev/null || true
+touch "${CHROOT_DIR}/etc/.updated" "${CHROOT_DIR}/var/.updated"
 
 # ------------------------------------------------------------------------------
 # 4. Prepare Instant-Boot USB Kernel & Initrd (timeout 0 -> tty1 -> ogust-install)

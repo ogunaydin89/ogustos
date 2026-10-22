@@ -40,6 +40,7 @@ Description: Universal Offline Document & PDF Manipulation Suite
 EOF
 
     cp -a "${EMERGE_PDF_SRC}/src" "${EMERGE_PDF_SRC}/requirements.txt" "${STAGE}/usr/share/emerge-pdf/"
+    sed -i 's/APP_VERSION = "0.7.1"/APP_VERSION = "1.0.1"/' "${STAGE}/usr/share/emerge-pdf/src/main.py" 2>/dev/null || true
     cat > "${STAGE}/usr/share/emerge-pdf/src/fitz.py" <<'EOF'
 from pymupdf import *
 from pymupdf import __doc__, __version__
