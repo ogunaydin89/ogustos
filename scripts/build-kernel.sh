@@ -45,6 +45,10 @@ else
     rm -f localversion*
 fi
 
+# ogustOS branding: replace the stock Tux boot logo (also used by the DRM panic screen)
+echo "[::] Installing ogustOS boot logo..."
+install -m 0644 "${REPO_ROOT}/kernel/branding/logo_linux_clut224.ppm" drivers/video/logo/logo_linux_clut224.ppm
+
 if [[ ! -f .config ]]; then
     echo "[::] Installing Universal Debian base config-7.3-ogustOS..."
     cp "${REPO_ROOT}/kernel/config-7.3-ogustOS" .config
@@ -75,8 +79,8 @@ echo "[::] Compiling ${KREL} Debian packages (-j${JOBS} with Clang/LLVM + ThinLT
 export LLVM=1 LLVM_IAS=1
 export KBUILD_BUILD_USER="ogust"
 export KBUILD_BUILD_HOST="ogustos"
-export DEBFULLNAME="ogustOS"
-export DEBEMAIL="builder@ogustos.local"
+export DEBFULLNAME="Ogun Aydin"
+export DEBEMAIL="251391298+ogunaydin89@users.noreply.github.com"
 make -j"${JOBS}" LLVM=1 LLVM_IAS=1 bindeb-pkg \
     LOCALVERSION="" \
     KDEB_PKGVERSION="$PKGVER" \
