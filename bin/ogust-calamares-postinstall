@@ -208,7 +208,7 @@ touch /etc/.updated /var/.updated
 EOF
 
 # Determine root kernel parameters (UUID, optional LUKS crypttab, optional btrfs subvol)
-KERNEL_CMDLINE="amdgpu.gpu_recovery=1 tsc=reliable rw quiet"
+KERNEL_CMDLINE="amdgpu.gpu_recovery=1 tsc=reliable rw quiet splash"
 CHASSIS_TYPE="$(cat /sys/class/dmi/id/chassis_type 2>/dev/null || echo 3)"
 case "$CHASSIS_TYPE" in
     8|9|10|11|14|30|31|32) ;;

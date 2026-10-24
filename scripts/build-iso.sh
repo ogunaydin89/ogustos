@@ -59,6 +59,8 @@ install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/s
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${CHROOT_DIR}/etc/calamares/branding/ogustos/ogustos-logo.svg"
 install -D -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
+install -d "${CHROOT_DIR}/usr/share/plymouth/themes/ogustos"
+install -m 0644 "${REPO_ROOT}"/plymouth/ogustos/* "${CHROOT_DIR}/usr/share/plymouth/themes/ogustos/"
 mkdir -p "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark"
 ln -sf ../images/3840x2160.jpg "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 
@@ -232,6 +234,11 @@ LOC
 fi
 locale-gen
 
+# Select the ogustOS Plymouth theme before the initramfs is (re)built
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+    plymouth-set-default-theme ogustos
+fi
+
 # Ensure initramfs is built with live-boot support for 7.3.x-ogustOS
 KVER="$(ls -1 /lib/modules | sort -V | tail -n 1)"
 update-initramfs -c -k "$KVER" || update-initramfs -u -k "$KVER"
@@ -369,7 +376,7 @@ cat > "${ISO_DIR}/loader/entries/ogustos-installer.conf" <<'EOF'
 title   ogustOS KDE Installer
 linux   /live/vmlinuz
 initrd  /live/initrd.img
-options boot=live quiet loglevel=0 systemd.unit=multi-user.target
+options boot=live quiet splash loglevel=0 systemd.unit=multi-user.target
 EOF
 
 # ------------------------------------------------------------------------------

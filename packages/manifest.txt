@@ -10,6 +10,8 @@ linux-headers-ogustos
 linux-firmware
 firmware-sof-signed
 amd64-microcode
+plymouth
+plymouth-label
 intel-microcode
 systemd
 systemd-sysv

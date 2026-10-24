@@ -1,0 +1,57 @@
+/* ogustOS Plymouth theme: maroon background, centered emblem with a gentle pulse,
+ * and a plain-text LUKS passphrase prompt. */
+
+/* Background #94042B */
+Window.SetBackgroundTopColor(0.580, 0.016, 0.169);
+Window.SetBackgroundBottomColor(0.580, 0.016, 0.169);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+/* Emblem */
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.x = screen_w / 2 - logo.image.GetWidth() / 2;
+logo.y = screen_h / 2 - logo.image.GetHeight() / 2;
+logo.sprite.SetX(logo.x);
+logo.sprite.SetY(logo.y);
+logo.sprite.SetZ(10);
+
+/* Gentle opacity pulse (refresh runs about 50 times per second) */
+tick = 0;
+fun refresh_callback ()
+{
+    tick++;
+    logo.sprite.SetOpacity(0.80 + 0.20 * Math.Sin(tick / 16.0));
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+/* Passphrase prompt (gold #FDB912 dots below the emblem) */
+prompt.sprite = Sprite();
+bullets.sprite = Sprite();
+
+fun password_callback (prompt_text, bullet_count)
+{
+    prompt.image = Image.Text(prompt_text, 1.0, 1.0, 1.0);
+    prompt.sprite.SetImage(prompt.image);
+    prompt.sprite.SetX(screen_w / 2 - prompt.image.GetWidth() / 2);
+    prompt.sprite.SetY(logo.y + logo.image.GetHeight() + 40);
+    prompt.sprite.SetOpacity(1);
+
+    dots = "";
+    for (i = 0; i < bullet_count; i++)
+        dots = dots + "*";
+    bullets.image = Image.Text(dots + " ", 0.992, 0.725, 0.071);
+    bullets.sprite.SetImage(bullets.image);
+    bullets.sprite.SetX(screen_w / 2 - bullets.image.GetWidth() / 2);
+    bullets.sprite.SetY(logo.y + logo.image.GetHeight() + 40 + prompt.image.GetHeight() + 10);
+    bullets.sprite.SetOpacity(1);
+}
+Plymouth.SetDisplayPasswordFunction(password_callback);
+
+fun normal_callback ()
+{
+    prompt.sprite.SetOpacity(0);
+    bullets.sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayNormalFunction(normal_callback);
