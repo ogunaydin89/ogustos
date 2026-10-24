@@ -1,0 +1,16 @@
+# Build artifacts & temporary directories
+dist/
+build/
+work/
+*.deb
+*.ddeb
+*.udeb
+*.buildinfo
+*.changes
+*.iso
+*.squashfs
+*.tar.xz
+*.tar.gz
+*.log
+*.orig
+*.rej

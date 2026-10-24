@@ -1,0 +1,2 @@
+# Grant active desktop seat user RW access to /dev/i2c-* for KDE PowerDevil / libddcutil monitor brightness control
+KERNEL=="i2c-[0-9]*", TAG+="uaccess"

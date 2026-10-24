@@ -1,0 +1,22 @@
+# OS & Filesystem Metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+
+# Editor & IDE Directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AI Assistant Local Directories
+.gemini/
+.cursor/
+.hermes/
+
+# Python Bytecode & Virtualenvs
+__pycache__/
+*.py[cod]
+.venv/
+venv/

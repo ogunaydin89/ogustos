@@ -1,0 +1,14 @@
+# Hard-block Pardus from supplying the kernel (ogustOS ships 7.3.x), firmware, graphics stack, KDE, or branding/boot files
+Package: base-files desktop-base lsb-release grub* pardus-*grub* plymouth* pardus-*plymouth* sddm* plasma-desktop* plasma-workspace* systemd* udev* initramfs-tools* network-manager* linux-* firmware-* amd64-microcode intel-microcode mesa* libgl* libegl* libgles* libgbm* libvulkan* xserver-xorg* xwayland* kwin* kde-* libreoffice*
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: -1
+
+# Allow explicit installation and upgrades of Pardus/TUBITAK & e-Imza packages
+Package: pardus-* akis* e-imza* kamusm-*
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: 900
+
+# Tier 3: Pardus 25 Repository (Selective Institutional & Turkish Hardware Support)
+Package: *
+Pin: origin "depo.pardus.org.tr"
+Pin-Priority: 100

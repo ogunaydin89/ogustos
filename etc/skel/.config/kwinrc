@@ -1,0 +1,6 @@
+[Compositing]
+AllowTearing=true
+LatencyPolicy=ExtremelyLow
+
+[Wayland]
+EnablePrimarySelection=true

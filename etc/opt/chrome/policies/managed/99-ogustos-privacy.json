@@ -1,0 +1,11 @@
+{
+  "MetricsReportingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "PrivacySandboxPromptEnabled": false,
+  "PrivacySandboxAdTopicsEnabled": false,
+  "PrivacySandboxSiteEnabledAdsEnabled": false,
+  "PrivacySandboxAdMeasurementEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false,
+  "SpellCheckServiceEnabled": false,
+  "PromotionsEnabled": false
+}
