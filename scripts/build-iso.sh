@@ -206,7 +206,7 @@ fi
 # Pre-fetch missing .deb archives in 16 parallel connections so Fastly single-stream throttling never slows the build
 mkdir -p /var/cache/apt/archives
 xargs -a /tmp/manifest.list apt-get install -y --print-uris \
-    | awk -F"'" '/^'\''https?:\/\// {print $2, $4}' \
+    | awk '/^'\''https?:\/\// {gsub(/^'\''|'\''$/, "", $1); print $1, $2}' \
     | xargs -P 16 -n 2 bash -c '
         url="$1"; fn="$2"; dst="/var/cache/apt/archives/${fn}"
         [[ -s "$dst" ]] && exit 0
