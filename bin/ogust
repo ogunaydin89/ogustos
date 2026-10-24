@@ -17,7 +17,7 @@ need_root() {
 }
 
 ensure_remote_indexes() {
-    if ! compgen -G "/var/lib/apt/lists/*deb.debian.org*_Packages*" >/dev/null; then
+    if ! compgen -G "/var/lib/apt/lists/*_Packages*" >/dev/null; then
         echo "[::] Initializing APT repository package indexes..."
         if [[ $EUID -eq 0 ]]; then
             apt-get update

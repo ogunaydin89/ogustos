@@ -11,7 +11,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${REPO_ROOT}/dist/repo"
 BUILD_TMP="${BUILD_TMP:-/var/tmp/ogustos-apps-build}"
-EMERGE_PDF_SRC="${EMERGE_PDF_SRC:-/home/helin/Code/emerge-pdf}"
+EMERGE_PDF_SRC="${EMERGE_PDF_SRC:-${REPO_ROOT}/../emerge-pdf}"
 
 mkdir -p "${OUT_DIR}/pool/apps" "${OUT_DIR}/pool/main" "$BUILD_TMP"
 

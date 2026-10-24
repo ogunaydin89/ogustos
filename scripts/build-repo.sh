@@ -120,10 +120,11 @@ fi
 rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
 
 # Mask drkonqi coredump units globally since coredumps are disabled by design
-mkdir -p /etc/systemd/user /etc/systemd/system
+mkdir -p /etc/systemd/user /etc/systemd/system /etc/systemd/system/multi-user.target.wants
 ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-launcher.socket
 ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-pickup.service
 ln -sf /dev/null /etc/systemd/system/drkonqi-coredump-processor@.service
+ln -sf /etc/systemd/system/ogustos-numlock-tty.service /etc/systemd/system/multi-user.target.wants/ogustos-numlock-tty.service
 
 # Guarantee /etc/shadow and /etc/gshadow are root:shadow (0640) so unprivileged unix_chkpwd (kscreenlocker_greet) works
 if getent group shadow >/dev/null 2>&1; then
@@ -153,20 +154,23 @@ install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share
 install -m 0644 "${REPO_ROOT}/branding/ogustos-logo.svg" "${PKG_STAGE}/usr/share/icons/hicolor/scalable/apps/start-here-kde.svg"
 install -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg"
 ln -sf ../images/3840x2160.jpg "${PKG_STAGE}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
+install -d "${PKG_STAGE}/usr/share/plymouth/themes/ogustos"
+install -m 0644 "${REPO_ROOT}"/plymouth/ogustos/* "${PKG_STAGE}/usr/share/plymouth/themes/ogustos/"
 
 cat > "${PKG_STAGE}/usr/share/sddm/themes/breeze/theme.conf.user" <<'EOF'
 [General]
+showlogo=shown
+showClock=true
+logo=/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg
 type=image
+color=#94042B
+fontSize=10
 background=/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg
+needsFullUserModel=false
 EOF
 
 cat > "${PKG_STAGE}/usr/share/wallpapers/ogustOS/metadata.json" <<'EOF'
-{
-    "KPlugin": {
-        "Id": "ogustOS",
-        "Name": "ogustOS"
-    }
-}
+{"KPlugin":{"Id":"ogustOS","Name":"ogustOS","License":"CC-BY-SA-4.0"}}
 EOF
 
 mkdir -p "${OUT_DIR}/pool/main" "${OUT_DIR}/pool/apps"
