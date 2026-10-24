@@ -1,0 +1,33 @@
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#94042B"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
++ boot_menu {
+  left = 25%
+  top = 30%
+  width = 50%
+  height = 55%
+  item_color = "#f3d9df"
+  selected_item_color = "#FDB912"
+  icon_width = 0
+  icon_height = 0
+  item_icon_space = 10
+  item_height = 36
+  item_padding = 0
+  item_spacing = 5
+}
+
++ label {
+  top = 90%
+  left = 0
+  width = 100%
+  align = "center"
+  id = "__timeout__"
+  text = "Booting in %d seconds"
+  color = "#f3d9df"
+}

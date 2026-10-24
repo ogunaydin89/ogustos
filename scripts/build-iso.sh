@@ -62,6 +62,21 @@ install -D -m 0644 "${REPO_ROOT}/branding/wallpaper.jpg" "${CHROOT_DIR}/usr/shar
 install -d "${CHROOT_DIR}/usr/share/plymouth/themes/ogustos"
 install -m 0644 "${REPO_ROOT}"/plymouth/ogustos/* "${CHROOT_DIR}/usr/share/plymouth/themes/ogustos/"
 mkdir -p "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark"
+cat > "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/metadata.json" <<'WPEOF'
+{"KPlugin":{"Id":"ogustOS","Name":"ogustOS","License":"CC-BY-SA-4.0"}}
+WPEOF
+mkdir -p "${CHROOT_DIR}/usr/share/sddm/themes/breeze"
+cat > "${CHROOT_DIR}/usr/share/sddm/themes/breeze/theme.conf.user" <<'SDDMEOF'
+[General]
+showlogo=shown
+showClock=true
+logo=/usr/share/icons/hicolor/scalable/apps/ogustos-logo.svg
+type=image
+color=#94042B
+fontSize=10
+background=/usr/share/wallpapers/ogustOS/contents/images/3840x2160.jpg
+needsFullUserModel=false
+SDDMEOF
 ln -sf ../images/3840x2160.jpg "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 
 if [[ "${BUNDLE_AGY:-0}" == "1" && -x /usr/local/bin/agy ]]; then
