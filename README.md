@@ -10,10 +10,11 @@
 
 ### 1. `7.3.x-ogustOS` Kernel
 Built from upstream `kernel.org` sources using **Clang/LLVM** with **ThinLTO** (`CONFIG_LTO_CLANG_THIN=y`) over a full universal `amd64` driver configuration (`4,198` loadable modules):
-- **CPU Scheduler:** **BORE** (`CONFIG_SCHED_BORE=y`) + **CachyOS** interactivity patchset (`CONFIG_CACHY=y`) + **`sched_ext`** (`CONFIG_SCHED_CLASS_EXT=y`).
-- **Preemption & Timer:** Full preemption (`CONFIG_PREEMPT=y`), `1000 Hz` tick (`CONFIG_HZ_1000=y`), high-resolution timers, and zero-delay RCU priority boosting (`CONFIG_RCU_BOOST=y`, `CONFIG_RCU_BOOST_DELAY=0`).
-- **Networking:** Google **TCP BBRv3** (`CONFIG_TCP_CONG_BBR3=y`, `CONFIG_DEFAULT_TCP_CONG="bbr3"`) and Fair Queueing (`CONFIG_NET_SCH_FQ=y`) built in.
-- **Built-In Core Hotpaths (`=y`):** `ext4`, `nvme`, `zram` (`lz4`), `ntsync` (`/dev/ntsync`), `amd_pstate` (`active`), and `intel_pstate` linked directly into `vmlinux` for cross-file ThinLTO inlining.
+- **CPU Scheduler:** Mainline **EEVDF** + **`sched_ext`** (`CONFIG_SCHED_CLASS_EXT=y`), with no out-of-tree scheduler patches.
+- **Portable Target:** Generic `x86-64` baseline (`CONFIG_GENERIC_CPU=y`, no `-march` ISA raise), with all CPU vulnerability mitigations compiled in at distro defaults.
+- **Preemption & Timer:** Dynamic preemption defaulting to full (`CONFIG_PREEMPT_DYNAMIC=y`, `CONFIG_PREEMPT=y`), `1000 Hz` tick (`CONFIG_HZ_1000=y`), high-resolution timers, and zero-delay RCU priority boosting (`CONFIG_RCU_BOOST=y`, `CONFIG_RCU_BOOST_DELAY=0`).
+- **Networking:** Mainline **TCP CUBIC** default (`CONFIG_DEFAULT_TCP_CONG="cubic"`), mainline BBR available as a module (`CONFIG_TCP_CONG_BBR=m`), and Fair Queueing (`CONFIG_NET_SCH_FQ=y`) built in.
+- **Built-In Core Hotpaths (`=y`):** `ext4`, `nvme`, `zram` (`lz4`), `amd_pstate` (`active`), and `intel_pstate` linked directly into `vmlinux` for cross-file ThinLTO inlining; `ntsync` (`/dev/ntsync`) ships as a module.
 - **Memory Management:** Multi-Gen LRU (`CONFIG_LRU_GEN_ENABLED=y`), `madvise` Transparent Hugepages, and `zram` (`lz4`) swap.
 
 ### 2. Complete KDE Plasma Wayland Suite (`kde-full`) & Low-Latency Audio/Graphics
@@ -63,7 +64,7 @@ The installer extracts the pre-built `filesystem.squashfs` image onto `ext4` (`r
 ├── branding/     # Vector logos, wordmark, fastfetch ASCII art, and default wallpaper
 ├── certs/        # Optional CA certificates for institutional networks
 ├── etc/          # Systemd, sysctl, udev, SDDM, fontconfig, mpv, and /etc/skel defaults
-├── kernel/       # Universal 7.3-ogustOS base config, overrides fragment, and 7.3 patches
+├── kernel/       # Universal 7.3-ogustOS base config, overrides fragment, and the Clang DKMS patch
 ├── packages/     # Explicit system package manifest (packages/manifest.txt)
 └── scripts/      # Automated build scripts (kernel, apps, APT repository, and ISO)
 ```

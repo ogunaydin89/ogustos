@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # build-kernel.sh — Builds universal linux-image-7.3.x-ogustOS .deb from kernel.org
-# Applies Cachy + BBRv3 + BORE patches, merges Universal Debian amd64 config +
+# Applies the Clang DKMS patch, merges Universal Debian amd64 config +
 # ogustos-overrides.config, compiles with LLVM=1 + Clang ThinLTO, and builds meta-debs.
 # ==============================================================================
 set -euo pipefail
@@ -24,11 +24,8 @@ if [[ ! -f "$TARBALL" ]]; then
     curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" | grep "  ${TARBALL}\$" | sha256sum -c -
 fi
 
-# Fetch Cachy + BBRv3 + BORE + Clang DKMS patches if not already cached in repo
+# Fetch the Clang DKMS patch (the only patch carried) if not already cached in repo
 PATCH_DIR="${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
-[[ -f "${PATCH_DIR}/0001-cachy.patch" ]] || curl -fsSL "https://github.com/CachyOS/linux/compare/e4cd5992b0de~1...52dc9bb47a1b.patch" -o "${PATCH_DIR}/0001-cachy.patch"
-[[ -f "${PATCH_DIR}/0002-bbr3.patch" ]]  || curl -fsSL "https://github.com/CachyOS/linux/compare/5b121d2f9e4f~1...a52f724cc56d.patch" -o "${PATCH_DIR}/0002-bbr3.patch"
-[[ -f "${PATCH_DIR}/0003-bore-cachy.patch" ]] || curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KMAJOR_MINOR}/sched/0001-bore-cachy.patch" -o "${PATCH_DIR}/0003-bore-cachy.patch"
 [[ -f "${PATCH_DIR}/0004-dkms-clang.patch" ]] || curl -fsSL "https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${KMAJOR_MINOR}/misc/dkms-clang.patch" -o "${PATCH_DIR}/0004-dkms-clang.patch"
 
 if [[ ! -f "linux-${KVER}/.patched_ogustos" ]]; then
