@@ -47,7 +47,7 @@ fi
 rm -f "${TARGET_MNT}/etc/systemd/system/ogust-installer.service" \
       "${TARGET_MNT}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
 
-# Ensure /etc/hostname, /etc/hosts, and /etc/sudoers.d/10-installer are populated
+# Ensure /etc/hostname and /etc/hosts are populated
 if [[ ! -s "${TARGET_MNT}/etc/hostname" ]]; then
     echo "ogustos" > "${TARGET_MNT}/etc/hostname"
 fi
@@ -61,9 +61,6 @@ ff02::1		ip6-allnodes
 ff02::2		ip6-allrouters
 EOF
 fi
-mkdir -p "${TARGET_MNT}/etc/sudoers.d"
-echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "${TARGET_MNT}/etc/sudoers.d/10-installer"
-chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer"
 
 # Remove empty [Autologin] /etc/sddm.conf written by Calamares when autologin is disabled
 if [[ -f "${TARGET_MNT}/etc/sddm.conf" ]] && ! grep -qE '^User=[^[:space:]]+' "${TARGET_MNT}/etc/sddm.conf"; then

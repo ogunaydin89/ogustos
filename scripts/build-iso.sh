@@ -78,9 +78,26 @@ needsFullUserModel=false
 SDDMEOF
 ln -sf ../images/3840x2160.jpg "${CHROOT_DIR}/usr/share/wallpapers/ogustOS/contents/images_dark/3840x2160.jpg"
 
-if [[ "${BUNDLE_AGY:-0}" == "1" && -x /usr/local/bin/agy ]]; then
+# Bundle Antigravity CLI (agy) & Antigravity Desktop GUI (/opt/Antigravity)
+if [[ -x /usr/local/bin/agy ]]; then
     echo "[::] Bundling Antigravity CLI (/usr/local/bin/agy)..."
     install -D -m 0755 /usr/local/bin/agy "${CHROOT_DIR}/usr/local/bin/agy"
+elif [[ -x /home/ogusto/.local/bin/agy ]]; then
+    echo "[::] Bundling Antigravity CLI (/home/ogusto/.local/bin/agy -> /usr/local/bin/agy)..."
+    install -D -m 0755 /home/ogusto/.local/bin/agy "${CHROOT_DIR}/usr/local/bin/agy"
+fi
+
+if [[ -d /opt/Antigravity ]]; then
+    echo "[::] Bundling Antigravity Desktop GUI (/opt/Antigravity)..."
+    rm -rf "${CHROOT_DIR}/opt/Antigravity"
+    mkdir -p "${CHROOT_DIR}/opt" "${CHROOT_DIR}/usr/local/bin"
+    cp -a /opt/Antigravity "${CHROOT_DIR}/opt/Antigravity"
+    chown -R 0:0 "${CHROOT_DIR}/opt/Antigravity"
+    chmod 4755 "${CHROOT_DIR}/opt/Antigravity/chrome-sandbox"
+    ln -sfn /opt/Antigravity/antigravity "${CHROOT_DIR}/usr/local/bin/antigravity"
+    [[ -f /usr/share/pixmaps/antigravity.png ]] && install -D -m 0644 /usr/share/pixmaps/antigravity.png "${CHROOT_DIR}/usr/share/pixmaps/antigravity.png"
+    [[ -f /usr/share/icons/hicolor/512x512/apps/antigravity.png ]] && install -D -m 0644 /usr/share/icons/hicolor/512x512/apps/antigravity.png "${CHROOT_DIR}/usr/share/icons/hicolor/512x512/apps/antigravity.png"
+    [[ -f /usr/share/applications/antigravity.desktop ]] && install -D -m 0644 /usr/share/applications/antigravity.desktop "${CHROOT_DIR}/usr/share/applications/antigravity.desktop"
 fi
 
 # ------------------------------------------------------------------------------
@@ -299,6 +316,10 @@ chmod 0640 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}
 if [[ -f "${CHROOT_DIR}/usr/sbin/unix_chkpwd" ]]; then
     chown 0:42 "${CHROOT_DIR}/usr/sbin/unix_chkpwd"
     chmod 2755 "${CHROOT_DIR}/usr/sbin/unix_chkpwd"
+fi
+if [[ -f "${CHROOT_DIR}/opt/Antigravity/chrome-sandbox" ]]; then
+    chown 0:0 "${CHROOT_DIR}/opt/Antigravity/chrome-sandbox"
+    chmod 4755 "${CHROOT_DIR}/opt/Antigravity/chrome-sandbox"
 fi
 chroot "$CHROOT_DIR" ldconfig
 chroot "$CHROOT_DIR" systemd-hwdb update 2>/dev/null || true
