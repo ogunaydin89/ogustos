@@ -13,6 +13,20 @@ OUT_POOL="${REPO_ROOT}/dist/repo/pool/main"
 BUILD_DIR="${BUILD_DIR:-/var/tmp/ogustos-kernel-build}"
 JOBS="$(nproc)"
 
+# Preflight check for required Clang/LLVM + BTF/DWARF kernel build dependencies
+for tool in clang ld.lld llvm-ar pahole bc bison flex rsync cpio curl xz dpkg-deb; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "ERROR: Required build tool '$tool' is not installed." >&2
+        exit 1
+    fi
+done
+for pkg in libdw-dev libelf-dev libssl-dev; do
+    if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+        echo "ERROR: Required development package '$pkg' is not installed (run: sudo ogust in $pkg)." >&2
+        exit 1
+    fi
+done
+
 echo "[::] Preparing build directory in ${BUILD_DIR}..."
 mkdir -p "$BUILD_DIR" "$OUT_POOL" "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
 cd "$BUILD_DIR"
@@ -97,13 +111,17 @@ for kind in image headers; do
     META_STAGE="${BUILD_DIR}/meta-linux-${kind}-ogustos"
     rm -rf "$META_STAGE"
     mkdir -p "${META_STAGE}/DEBIAN"
+    EXTRA_DEPS=""
+    if [[ "$kind" == "headers" ]]; then
+        EXTRA_DEPS=", clang, lld, llvm, make"
+    fi
     cat > "${META_STAGE}/DEBIAN/control" <<EOF
 Package: linux-${kind}-ogustos
 Version: ${PKGVER}
 Section: kernel
 Priority: required
 Architecture: amd64
-Depends: linux-${kind}-${KREL_LOWER} (= ${PKGVER})
+Depends: linux-${kind}-${KREL_LOWER} (= ${PKGVER})${EXTRA_DEPS}
 Maintainer: Ogun Aydin <251391298+ogunaydin89@users.noreply.github.com>
 Description: Latest ogustOS Linux kernel ${kind} meta-package (tracks ${KREL})
 EOF
