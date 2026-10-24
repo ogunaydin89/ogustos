@@ -345,6 +345,7 @@ WantedBy=multi-user.target
 EOF
 mkdir -p "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants"
 ln -sf /etc/systemd/system/ogust-installer.service "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
+ln -sf /etc/systemd/system/ogustos-numlock-tty.service "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants/ogustos-numlock-tty.service"
 
 cleanup_iso_mounts
 rmdir "${CHROOT_DIR}/tmp/ogustos-repo" 2>/dev/null || true
