@@ -63,8 +63,7 @@ EOF
 fi
 mkdir -p "${TARGET_MNT}/etc/sudoers.d"
 echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "${TARGET_MNT}/etc/sudoers.d/10-installer"
-echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" > "${TARGET_MNT}/etc/sudoers.d/99-ogustos-nopasswd"
-chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer" "${TARGET_MNT}/etc/sudoers.d/99-ogustos-nopasswd"
+chmod 0440 "${TARGET_MNT}/etc/sudoers.d/10-installer"
 
 # Remove empty [Autologin] /etc/sddm.conf written by Calamares when autologin is disabled
 if [[ -f "${TARGET_MNT}/etc/sddm.conf" ]] && ! grep -qE '^User=[^[:space:]]+' "${TARGET_MNT}/etc/sddm.conf"; then
@@ -91,10 +90,6 @@ EOF
 
 for user_home in "${TARGET_MNT}"/home/*; do
     [[ -d "$user_home" ]] || continue
-    user_name="${user_home##*/}"
-    if [[ ! -f "${user_home}/.zshrc" && -f "${TARGET_MNT}/etc/skel/.zshrc" ]]; then
-        cp -a "${TARGET_MNT}/etc/skel/." "${user_home}/"
-    fi
     mkdir -p "${user_home}/.config"
     cat > "${user_home}/.config/kxkbrc" <<EOF
 [Layout]
@@ -102,7 +97,6 @@ LayoutList=${XKB_LAYOUT}
 VariantList=${XKB_VARIANT}
 Use=true
 EOF
-    chroot "$TARGET_MNT" usermod -s /bin/zsh "$user_name" 2>/dev/null || true
     owner_ug="$(stat -c '%u:%g' "$user_home")"
     chown -R "$owner_ug" "$user_home"
 done

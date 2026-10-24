@@ -42,7 +42,6 @@ EOF
 
 cp -a "${REPO_ROOT}/etc" "${PKG_STAGE}/"
 rm -rf "${PKG_STAGE}/etc/calamares" "${PKG_STAGE}/etc/default/keyboard" "${PKG_STAGE}/etc/default/locale"
-chmod 0440 "${PKG_STAGE}/etc/sudoers.d/99-ogustos-nopasswd"
 cp -a "${REPO_ROOT}/apt/." "${PKG_STAGE}/etc/apt/"
 install -m 0644 "${REPO_ROOT}/etc/os-release" "${PKG_STAGE}/usr/share/ogustos/os-release"
 rm -f "${PKG_STAGE}/etc/os-release"
@@ -118,13 +117,6 @@ fi
 
 # Prevent duplicate Google Chrome APT source file (keep 04-google-chrome.sources)
 rm -f /etc/apt/sources.list.d/google-chrome.sources /etc/apt/sources.list.d/google-chrome.list
-
-# Mask drkonqi coredump units globally since coredumps are disabled by design
-mkdir -p /etc/systemd/user /etc/systemd/system /etc/systemd/system/multi-user.target.wants
-ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-launcher.socket
-ln -sf /dev/null /etc/systemd/user/drkonqi-coredump-pickup.service
-ln -sf /dev/null /etc/systemd/system/drkonqi-coredump-processor@.service
-ln -sf /etc/systemd/system/ogustos-numlock-tty.service /etc/systemd/system/multi-user.target.wants/ogustos-numlock-tty.service
 
 # Guarantee /etc/shadow and /etc/gshadow are root:shadow (0640) so unprivileged unix_chkpwd (kscreenlocker_greet) works
 if getent group shadow >/dev/null 2>&1; then

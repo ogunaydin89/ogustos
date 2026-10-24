@@ -42,7 +42,6 @@ cp -a --no-preserve=ownership "${REPO_ROOT}/apt/." "${CHROOT_DIR}/etc/apt/"
 chown -R 0:0 "${CHROOT_DIR}/etc"
 chgrp 42 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
 chmod 0640 "${CHROOT_DIR}/etc/shadow" "${CHROOT_DIR}/etc/gshadow" "${CHROOT_DIR}/etc/shadow-" "${CHROOT_DIR}/etc/gshadow-" 2>/dev/null || true
-chmod 0440 "${CHROOT_DIR}/etc/sudoers.d/99-ogustos-nopasswd" 2>/dev/null || true
 rm -f "${CHROOT_DIR}/etc/apt/sources.list" "${CHROOT_DIR}/etc/resolv.conf" \
       "${CHROOT_DIR}/usr/local/bin/ogust" \
       "${CHROOT_DIR}/usr/local/bin/ogust-install" \
@@ -345,7 +344,6 @@ WantedBy=multi-user.target
 EOF
 mkdir -p "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants"
 ln -sf /etc/systemd/system/ogust-installer.service "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants/ogust-installer.service"
-ln -sf /etc/systemd/system/ogustos-numlock-tty.service "${CHROOT_DIR}/etc/systemd/system/multi-user.target.wants/ogustos-numlock-tty.service"
 
 cleanup_iso_mounts
 rmdir "${CHROOT_DIR}/tmp/ogustos-repo" 2>/dev/null || true
