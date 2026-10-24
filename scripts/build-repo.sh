@@ -43,8 +43,12 @@ EOF
 cp -a "${REPO_ROOT}/etc" "${PKG_STAGE}/"
 rm -rf "${PKG_STAGE}/etc/calamares" "${PKG_STAGE}/etc/default/keyboard" "${PKG_STAGE}/etc/default/locale"
 cp -a "${REPO_ROOT}/apt/." "${PKG_STAGE}/etc/apt/"
-install -m 0644 "${REPO_ROOT}/etc/os-release" "${PKG_STAGE}/usr/share/ogustos/os-release"
-rm -f "${PKG_STAGE}/etc/os-release"
+for bf in os-release issue issue.net motd; do
+    if [[ -f "${REPO_ROOT}/etc/${bf}" ]]; then
+        install -m 0644 "${REPO_ROOT}/etc/${bf}" "${PKG_STAGE}/usr/share/ogustos/${bf}"
+        rm -f "${PKG_STAGE}/etc/${bf}"
+    fi
+done
 
 cat > "${PKG_STAGE}/DEBIAN/postinst" <<'EOF'
 #!/usr/bin/env bash
@@ -54,6 +58,15 @@ if ! dpkg-divert --list /usr/lib/os-release | grep -q ogustos-base; then
 fi
 cp -f /usr/share/ogustos/os-release /usr/lib/os-release
 ln -sf ../usr/lib/os-release /etc/os-release
+
+for bf in issue issue.net motd; do
+    if [[ -f "/usr/share/ogustos/${bf}" ]]; then
+        if ! dpkg-divert --list "/etc/${bf}" | grep -q ogustos-base; then
+            dpkg-divert --package ogustos-base --divert "/etc/${bf}.debian" --rename "/etc/${bf}" >/dev/null 2>&1 || true
+        fi
+        cp -f "/usr/share/ogustos/${bf}" "/etc/${bf}"
+    fi
+done
 
 if [[ ! -f /etc/default/locale ]]; then
     cat > /etc/default/locale <<'LOC'
