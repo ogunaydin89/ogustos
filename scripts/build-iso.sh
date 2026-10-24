@@ -20,15 +20,15 @@ OUT_ISO="${REPO_ROOT}/dist/ogustOS-kde-amd64.iso"
 mkdir -p "$WORK_DIR" "${ISO_DIR}/live" "${ISO_DIR}/EFI/BOOT" "${ISO_DIR}/loader/entries" "${REPO_ROOT}/dist"
 
 # ------------------------------------------------------------------------------
-# 1. Bootstrap Base Rootfs (Debian Testing amd64)
+# 1. Bootstrap Base Rootfs (Debian Stable amd64)
 # ------------------------------------------------------------------------------
 if [[ ! -d "${CHROOT_DIR}/etc" ]]; then
-    echo "[::] Bootstrapping Debian Testing base rootfs into ${CHROOT_DIR}..."
+    echo "[::] Bootstrapping Debian Stable base rootfs into ${CHROOT_DIR}..."
     KEYRING_ARG="--no-check-gpg"
     [[ -f /usr/share/keyrings/debian-archive-keyring.gpg ]] && KEYRING_ARG="--keyring=/usr/share/keyrings/debian-archive-keyring.gpg"
     debootstrap "$KEYRING_ARG" --arch=amd64 --variant=minbase \
         --include=ca-certificates,curl,gnupg,debian-archive-keyring,locales \
-        testing "$CHROOT_DIR" https://deb.debian.org/debian
+        stable "$CHROOT_DIR" https://deb.debian.org/debian
 fi
 
 # ------------------------------------------------------------------------------
@@ -154,7 +154,7 @@ if [[ -n "$BLOAT_PKGS" ]]; then
 fi
 xargs -a /tmp/manifest.list apt-get install -y
 apt-get dist-upgrade -y
-apt-get install -y --allow-downgrades viewnior/forky 2>/dev/null || apt-get install -y --allow-downgrades viewnior/testing 2>/dev/null || true
+apt-get install -y --allow-downgrades viewnior/stable 2>/dev/null || apt-get install -y viewnior 2>/dev/null || true
 dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
         /tmp/ogustos-repo/pool/main/linux-image-*.deb \
         /tmp/ogustos-repo/pool/main/linux-headers-*.deb \

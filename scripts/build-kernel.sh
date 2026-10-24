@@ -6,15 +6,28 @@
 # ==============================================================================
 set -euo pipefail
 
-KVER="${1:-7.3}"
-KMAJOR_MINOR="$(cut -d. -f1-2 <<<"$KVER")"
+# Auto-detect the latest mainline kernel release from kernel.org when no version argument is passed
+if [[ -n "${1:-}" ]]; then
+    KVER="$1"
+    TARBALL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/linux-${KVER}.tar.xz"
+else
+    echo "[::] Querying kernel.org/releases.json for latest mainline kernel..."
+    RELEASES_JSON="$(curl -fsSL https://www.kernel.org/releases.json)"
+    KVER="$(jq -r '[.releases[] | select(.moniker=="mainline")][0].version' <<<"$RELEASES_JSON")"
+    TARBALL_URL="$(jq -r '[.releases[] | select(.moniker=="mainline")][0].source' <<<"$RELEASES_JSON")"
+    if [[ -z "$KVER" || "$KVER" == "null" ]]; then
+        KVER="7.3"
+        TARBALL_URL="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.3.tar.xz"
+    fi
+fi
+KMAJOR_MINOR="$(cut -d. -f1-2 <<<"$KVER" | sed -E 's/-rc[0-9]+$//')"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_POOL="${REPO_ROOT}/dist/repo/pool/main"
 BUILD_DIR="${BUILD_DIR:-/var/tmp/ogustos-kernel-build}"
 JOBS="$(nproc)"
 
 # Preflight check for required Clang/LLVM + BTF/DWARF kernel build dependencies
-for tool in clang ld.lld llvm-ar pahole bc bison flex rsync cpio curl xz dpkg-deb; do
+for tool in clang ld.lld llvm-ar pahole bc bison flex rsync cpio curl xz jq dpkg-deb; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "ERROR: Required build tool '$tool' is not installed." >&2
         exit 1
@@ -27,15 +40,17 @@ for pkg in libdw-dev libelf-dev libssl-dev; do
     fi
 done
 
-echo "[::] Preparing build directory in ${BUILD_DIR}..."
+echo "[::] Preparing build directory in ${BUILD_DIR} (target: Linux ${KVER})..."
 mkdir -p "$BUILD_DIR" "$OUT_POOL" "${REPO_ROOT}/kernel/patches/${KMAJOR_MINOR}"
 cd "$BUILD_DIR"
 
-TARBALL="linux-${KVER}.tar.xz"
+TARBALL="$(basename "$TARBALL_URL")"
 if [[ ! -f "$TARBALL" ]]; then
-    echo "[::] Downloading Linux ${KVER} from kernel.org..."
-    curl -fLO "https://cdn.kernel.org/pub/linux/kernel/v7.x/${TARBALL}"
-    curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc" | grep "  ${TARBALL}\$" | sha256sum -c -
+    echo "[::] Downloading Linux ${KVER} (${TARBALL_URL})..."
+    curl -fLO "$TARBALL_URL"
+    if [[ "$KVER" != *-rc* ]]; then
+        curl -fsSL "https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/sha256sums.asc" | grep "  ${TARBALL}\$" | sha256sum -c -
+    fi
 fi
 
 # Fetch the Clang DKMS patch (the only patch carried) if not already cached in repo
