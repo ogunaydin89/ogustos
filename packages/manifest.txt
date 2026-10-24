@@ -49,7 +49,6 @@ konsole
 kate
 okular
 ark
-gwenview
 kde-spectacle
 kinfocenter
 plasma-systemmonitor

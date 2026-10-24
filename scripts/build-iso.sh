@@ -100,6 +100,23 @@ if [[ -d /opt/Antigravity ]]; then
     [[ -f /usr/share/applications/antigravity.desktop ]] && install -D -m 0644 /usr/share/applications/antigravity.desktop "${CHROOT_DIR}/usr/share/applications/antigravity.desktop"
 fi
 
+if [[ -x /usr/local/bin/claude ]]; then
+    echo "[::] Bundling Claude Code (/usr/local/bin/claude)..."
+    install -D -m 0755 /usr/local/bin/claude "${CHROOT_DIR}/usr/local/bin/claude"
+fi
+
+if [[ -d /opt/hermes ]]; then
+    echo "[::] Bundling Hermes Agent (/opt/hermes & /usr/local/bin/hermes*)..."
+    rm -rf "${CHROOT_DIR}/opt/hermes"
+    mkdir -p "${CHROOT_DIR}/opt" "${CHROOT_DIR}/usr/local/bin"
+    cp -a /opt/hermes "${CHROOT_DIR}/opt/hermes"
+    chown -R 0:0 "${CHROOT_DIR}/opt/hermes"
+    chmod -R a+rX "${CHROOT_DIR}/opt/hermes"
+    for hbin in hermes hermes-acp hermes-agent; do
+        [[ -x "/usr/local/bin/${hbin}" ]] && install -D -m 0755 "/usr/local/bin/${hbin}" "${CHROOT_DIR}/usr/local/bin/${hbin}"
+    done
+fi
+
 # ------------------------------------------------------------------------------
 # 3. Chroot Package Installation (Manifest + Local ogustOS APT Repo + Defaults)
 # ------------------------------------------------------------------------------
@@ -226,8 +243,8 @@ update-initramfs -c -k "$KVER" || update-initramfs -u -k "$KVER"
 # Remove any legacy X11 desktop session files so SDDM offers strictly Plasma Wayland
 rm -f /usr/share/xsessions/*.desktop
 
-# Enable core services, Bluetooth, mDNS printer discovery, weekly SSD fstrim, and UFW firewall
-systemctl enable sddm NetworkManager systemd-resolved bluetooth avahi-daemon ufw chrony cups fstrim.timer 2>/dev/null || true
+# Enable core services, Bluetooth, mDNS printer discovery, weekly SSD fstrim, TTY NumLock, and UFW firewall
+systemctl enable sddm NetworkManager systemd-resolved bluetooth avahi-daemon ufw chrony cups fstrim.timer ogustos-numlock-tty.service 2>/dev/null || true
 systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
 if command -v ufw >/dev/null 2>&1; then
     ufw default deny incoming || true

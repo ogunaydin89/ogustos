@@ -1,0 +1,11 @@
+[Unit]
+Description=NumLock on for the text consoles (tty1-tty6)
+After=systemd-vconsole-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for t in 1 2 3 4 5 6; do /usr/bin/setleds -D +num < /dev/tty$t; done'
+
+[Install]
+WantedBy=multi-user.target
