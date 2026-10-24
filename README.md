@@ -9,7 +9,7 @@
 ## Core Architecture
 
 ### 1. Three-Tier Repository Hierarchy (`1001 > 900 > 100`)
-- **Tier 1 — `ogustOS` Repository (`Pin-Priority: 1001`):** Always wins for the newest upstream **Mainline Kernel (`7.3.x-ogustOS`)**, **Kernel Headers**, **`linux-firmware`**, **`Mesa` (`amd64` + `i386`)**, and `ogustOS` packages (`ogustos-base`, `emerge-pdf`, `meb-sertifika`, `proton-ge-custom`, `libreoffice-fresh`). Tier 2 and Tier 3 can never override Tier 1.
+- **Tier 1 — `ogustOS` Repository (`Pin-Priority: 1001`):** Always wins for the newest upstream **Mainline Kernel (`7.3.x-ogustOS`)**, **Kernel Headers**, **`linux-firmware`**, **`Mesa` (`amd64` + `i386`)**, and `ogustos-base`. Tier 2 and Tier 3 can never override Tier 1.
 - **Tier 2 — Debian `stable` (`Pin-Priority: 900`):** Provides the rock-solid core OS userland (`glibc`, `systemd`, `kde-plasma-desktop`, `pipewire`, `apt`, `dpkg`). Cannot override Tier 1, and always beats Tier 3.
 - **Tier 3 — Pardus `yirmibes` (`Pin-Priority: 100`):** Strictly below Debian `stable` (`900`) so it can never override any package present in Tier 1 or Tier 2; used only for explicit Pardus/institutional packages that do not exist in Debian `stable`.
 

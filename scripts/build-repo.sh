@@ -165,26 +165,19 @@ cat > "${PKG_STAGE}/usr/share/wallpapers/ogustOS/metadata.json" <<'EOF'
 {"KPlugin":{"Id":"ogustOS","Name":"ogustOS","License":"CC-BY-SA-4.0"}}
 EOF
 
-mkdir -p "${OUT_DIR}/pool/main" "${OUT_DIR}/pool/apps"
-mkdir -p "${OUT_DIR}/dists/stable/main/binary-amd64" "${OUT_DIR}/dists/stable/apps/binary-amd64"
-mkdir -p "${OUT_DIR}/dists/stable/main/binary-i386"  "${OUT_DIR}/dists/stable/apps/binary-i386"
+mkdir -p "${OUT_DIR}/pool/main"
+mkdir -p "${OUT_DIR}/dists/stable/main/binary-amd64"
+mkdir -p "${OUT_DIR}/dists/stable/main/binary-i386"
 
 rm -f "${OUT_DIR}/pool/main/ogustos-base_"*.deb
 dpkg-deb --build --root-owner-group "$PKG_STAGE" "${OUT_DIR}/pool/main/ogustos-base_1.0.3-1ogustos1_all.deb"
 
-# Build custom apps (emerge-pdf, etc.)
-if [[ -x "${REPO_ROOT}/scripts/build-apps.sh" ]]; then
-    "${REPO_ROOT}/scripts/build-apps.sh"
-fi
-
 # Generate Multi-Version Packages indices & top-level Release / InRelease
 if command -v dpkg-scanpackages >/dev/null 2>&1; then
     cd "$OUT_DIR"
-    for comp in main apps; do
-        for arch in amd64 i386; do
-            dpkg-scanpackages --multiversion --arch "$arch" "pool/${comp}" > "dists/stable/${comp}/binary-${arch}/Packages"
-            gzip -9c "dists/stable/${comp}/binary-${arch}/Packages" > "dists/stable/${comp}/binary-${arch}/Packages.gz"
-        done
+    for arch in amd64 i386; do
+        dpkg-scanpackages --multiversion --arch "$arch" "pool/main" > "dists/stable/main/binary-${arch}/Packages"
+        gzip -9c "dists/stable/main/binary-${arch}/Packages" > "dists/stable/main/binary-${arch}/Packages.gz"
     done
 
     if command -v apt-ftparchive >/dev/null 2>&1; then
@@ -194,7 +187,7 @@ if command -v dpkg-scanpackages >/dev/null 2>&1; then
             -o APT::FTPArchive::Release::Suite="stable" \
             -o APT::FTPArchive::Release::Codename="stable" \
             -o APT::FTPArchive::Release::Architectures="amd64 i386" \
-            -o APT::FTPArchive::Release::Components="main apps" \
+            -o APT::FTPArchive::Release::Components="main" \
             release dists/stable > dists/stable/Release
 
         if [[ -n "${GPG_KEY_ID:-}" ]]; then

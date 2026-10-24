@@ -85,11 +85,10 @@ plasma-runners-addons
 # --- 3. Desktop Applications ---
 google-chrome-stable
 mpv
-libreoffice-fresh
+libreoffice
 libreoffice-l10n-tr
 viewnior
 krita
-emerge-pdf
 imagemagick
 gettext
 
@@ -149,7 +148,6 @@ steam-devices
 libdbusmenu-glib4:i386
 libdbusmenu-gtk3-4:i386
 libgtk2.0-0t64:i386
-proton-ge-custom
 
 # --- 6. Audio & Multimedia Codecs ---
 pipewire

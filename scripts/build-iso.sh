@@ -103,7 +103,7 @@ cat > "${CHROOT_DIR}/etc/apt/sources.list.d/01-ogustos.sources" <<'EOF'
 Types: deb
 URIs: file:///tmp/ogustos-repo
 Suites: stable
-Components: main apps
+Components: main
 Architectures: amd64 i386
 Trusted: yes
 EOF
@@ -156,9 +156,7 @@ apt-get dist-upgrade -y
 apt-get install -y --allow-downgrades viewnior/stable 2>/dev/null || apt-get install -y viewnior 2>/dev/null || true
 dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \
         /tmp/ogustos-repo/pool/main/linux-image-*.deb \
-        /tmp/ogustos-repo/pool/main/linux-headers-*.deb \
-        /tmp/ogustos-repo/pool/apps/emerge-pdf_*.deb \
-        /tmp/ogustos-repo/pool/apps/libreoffice-fresh_*.deb
+        /tmp/ogustos-repo/pool/main/linux-headers-*.deb
 apt-get purge -y 'exim4*' 'courier*' 2>/dev/null || true
 BLOAT_PKGS="$(dpkg -l | awk '/^ii/ {print $2}' | grep -E '^(kde-full|kde-standard|kdeedu|kdegames|kdepim|akonadi|kmail|kalendarac|merkuro|korganizer|kaddressbook|kalarm|dragonplayer|juk|k3b|kamera|kmag|kmousetool|kmouth|konqueror|ktimetracker|sweeper|libakonadi|libkpim)' || true)"
 if [[ -n "$BLOAT_PKGS" ]]; then
@@ -223,13 +221,6 @@ if [[ -x /usr/games/steam ]]; then
     sed -i 's/ln -fns "\$target" "\$dest"/cp -f "$target" "$dest"/g' /usr/games/steam 2>/dev/null || true
 fi
 
-# Pre-build EmergePDF offline virtualenv (with pillow-heif) so first launch is instant & 100% offline
-if [[ -d /usr/share/emerge-pdf ]]; then
-    rm -rf /usr/share/emerge-pdf/venv
-    python3 -m venv --system-site-packages /usr/share/emerge-pdf/venv
-    /usr/share/emerge-pdf/venv/bin/pip install --disable-pip-version-check --no-input pillow-heif || true
-fi
-
 # Pre-configure Flathub remote for KDE Discover
 if command -v flatpak >/dev/null 2>&1; then
     flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
@@ -279,24 +270,19 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 EOF
 
-# Stage local on-disk /var/lib/ogustos-repo (apps + kernel & base packages) so
-# 'ogust up' and offline 'ogust in meb-sertifika' always work without network/TLS chicken-and-egg
+# Stage local on-disk /var/lib/ogustos-repo (kernel, headers, firmware, mesa, ogustos-base)
 rm -rf "${CHROOT_DIR}/var/lib/ogustos-repo/pool"
-mkdir -p "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main" "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps"
-cp -a "${REPO_ROOT}/dist/repo/pool/apps/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/apps/"
+mkdir -p "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main"
 cp -a "${REPO_ROOT}/dist/repo/pool/main/." "${CHROOT_DIR}/var/lib/ogustos-repo/pool/main/" 2>/dev/null || true
 
 cp -f "${REPO_ROOT}/apt/sources.list.d/01-ogustos.sources" "${CHROOT_DIR}/etc/apt/sources.list.d/01-ogustos.sources"
 
 chroot "$CHROOT_DIR" /usr/bin/env -i HOME=/root TERM=xterm PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 /bin/bash -e <<'EOF'
 cd /var/lib/ogustos-repo
-mkdir -p dists/stable/main/binary-amd64 dists/stable/apps/binary-amd64 \
-         dists/stable/main/binary-i386  dists/stable/apps/binary-i386
-for comp in main apps; do
-    for arch in amd64 i386; do
-        dpkg-scanpackages --multiversion --arch "$arch" "pool/${comp}" > "dists/stable/${comp}/binary-${arch}/Packages"
-        gzip -9c "dists/stable/${comp}/binary-${arch}/Packages" > "dists/stable/${comp}/binary-${arch}/Packages.gz"
-    done
+mkdir -p dists/stable/main/binary-amd64 dists/stable/main/binary-i386
+for arch in amd64 i386; do
+    dpkg-scanpackages --multiversion --arch "$arch" "pool/main" > "dists/stable/main/binary-${arch}/Packages"
+    gzip -9c "dists/stable/main/binary-${arch}/Packages" > "dists/stable/main/binary-${arch}/Packages.gz"
 done
 apt-ftparchive \
     -o APT::FTPArchive::Release::Origin="ogustOS" \
@@ -304,7 +290,7 @@ apt-ftparchive \
     -o APT::FTPArchive::Release::Suite="stable" \
     -o APT::FTPArchive::Release::Codename="stable" \
     -o APT::FTPArchive::Release::Architectures="amd64 i386" \
-    -o APT::FTPArchive::Release::Components="main apps" \
+    -o APT::FTPArchive::Release::Components="main" \
     release dists/stable > dists/stable/Release
 
 # Pre-index the local on-disk repository in /var/lib/apt/lists so offline installs work on first boot
