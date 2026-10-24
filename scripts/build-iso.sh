@@ -11,6 +11,13 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+for req_cmd in debootstrap mksquashfs xorriso mkfs.vfat mmd mcopy; do
+    if ! command -v "$req_cmd" >/dev/null 2>&1; then
+        echo "ERROR: Missing required host tool '$req_cmd' (install debootstrap squashfs-tools xorriso dosfstools mtools)." >&2
+        exit 1
+    fi
+done
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="${WORK_DIR:-/var/tmp/ogustos-iso-work}"
 CHROOT_DIR="${WORK_DIR}/chroot"
