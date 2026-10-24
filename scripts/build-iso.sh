@@ -176,6 +176,15 @@ apt-get update
 # Reinstall updated ogustos-base first (diverts /usr/lib/os-release & provides xserver)
 apt-get install -y --reinstall ogustos-base
 dpkg --configure -a
+cat > /etc/apt/sources.list.d/01-ogustos.sources <<'REPEOF'
+Types: deb
+URIs: file:///tmp/ogustos-repo
+Suites: stable
+Components: main
+Architectures: amd64 i386
+Trusted: yes
+REPEOF
+apt-get update -o Dir::Etc::sourcelist="sources.list.d/01-ogustos.sources" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
 
 # Install initramfs & live-boot tools first so kernel installation builds a complete initrd
 apt-get install -y \

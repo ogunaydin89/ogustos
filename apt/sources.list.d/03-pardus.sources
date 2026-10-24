@@ -1,6 +1,6 @@
 Types: deb
 URIs: https://depo.pardus.org.tr/pardus
-Suites: yirmibes yirmibes-deb
+Suites: yirmibes
 Components: main contrib non-free non-free-firmware
 Architectures: amd64
 Signed-By: /usr/share/keyrings/pardus-archive-keyring.gpg

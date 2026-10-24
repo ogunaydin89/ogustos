@@ -1,12 +1,7 @@
-# Hard-block Pardus from ever supplying the kernel, firmware, graphics stack, KDE, or boot/branding files
-Package: base-files desktop-base lsb-release grub* pardus-*grub* plymouth* pardus-*plymouth* sddm* plasma-desktop* plasma-workspace* systemd* udev* initramfs-tools* network-manager* linux-* firmware-* amd64-microcode intel-microcode mesa* libgl* libegl* libgles* libgbm* libvulkan* xserver-xorg* xwayland* kwin* kde-* libreoffice*
-Pin: origin "depo.pardus.org.tr"
-Pin-Priority: -1
-
 # Tier 3: Pardus Repository (Pin-Priority 100 — strictly below Debian 900 and ogustOS 1001)
 # Guarantees Tier 3 (Pardus) can NEVER override Tier 2 (Debian, 900) or Tier 1 (ogustOS, 1001),
 # even if Pardus carries a higher package version number. Only packages that do not exist at all
-# in Tier 1 or Tier 2 (e.g. pardus-*, akis*, e-imza*) can be pulled from Tier 3.
+# in Tier 1 or Tier 2 (e.g. pardus-*, eta-*, akis*, e-imza*) can be pulled from Tier 3.
 Package: *
 Pin: origin "depo.pardus.org.tr"
 Pin-Priority: 100
