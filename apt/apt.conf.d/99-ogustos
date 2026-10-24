@@ -9,4 +9,5 @@ Acquire::Retries "3";
 Dpkg::Options {
    "--force-confdef";
    "--force-confold";
+   "--force-overwrite";
 };

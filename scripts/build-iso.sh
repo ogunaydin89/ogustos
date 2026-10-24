@@ -178,7 +178,8 @@ echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select t
 apt-get update
 
 # Reinstall updated ogustos-base first (diverts /usr/lib/os-release & provides xserver)
-apt-get install -y --reinstall ogustos-base
+dpkg --force-overwrite -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb
+apt-get -o Dpkg::Options::="--force-overwrite" -f install -y
 dpkg --configure -a
 cat > /etc/apt/sources.list.d/01-ogustos.sources <<'REPEOF'
 Types: deb
@@ -205,7 +206,8 @@ if [[ -n "$BLOAT_PKGS" ]]; then
 fi
 # Pre-fetch missing .deb archives in 16 parallel connections so Fastly single-stream throttling never slows the build
 mkdir -p /var/cache/apt/archives
-xargs -a /tmp/manifest.list apt-get install -y --print-uris \
+apt-get -o Dpkg::Options::="--force-overwrite" -f install -y
+xargs -a /tmp/manifest.list apt-get -o Dpkg::Options::="--force-overwrite" install -y --print-uris \
     | awk '/^'\''https?:\/\// {gsub(/^'\''|'\''$/, "", $1); print $1, $2}' \
     | xargs -P 16 -n 2 bash -c '
         url="$1"; fn="$2"; dst="/var/cache/apt/archives/${fn}"
@@ -213,7 +215,8 @@ xargs -a /tmp/manifest.list apt-get install -y --print-uris \
         curl -fsSL --retry 3 "$url" -o "${dst}.tmp.$$" && mv -f "${dst}.tmp.$$" "$dst" || rm -f "${dst}.tmp.$$"
     ' _
 
-xargs -a /tmp/manifest.list apt-get install -y
+apt-get -o Dpkg::Options::="--force-overwrite" -f install -y
+xargs -a /tmp/manifest.list apt-get -o Dpkg::Options::="--force-overwrite" install -y
 apt-get dist-upgrade -y
 apt-get install -y --allow-downgrades viewnior/stable 2>/dev/null || apt-get install -y viewnior 2>/dev/null || true
 dpkg -i /tmp/ogustos-repo/pool/main/ogustos-base_*.deb \

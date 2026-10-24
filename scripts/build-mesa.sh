@@ -15,6 +15,7 @@ else
     BUILD_DIR="${BUILD_DIR:-/var/tmp/ogustos-mesa-build}"
 fi
 JOBS="$(nproc)"
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(date +%s)}"
 
 if ! command -v debootstrap >/dev/null 2>&1; then
     echo "[::] Installing debootstrap from Debian stable..."
