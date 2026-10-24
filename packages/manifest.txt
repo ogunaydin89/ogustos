@@ -1,6 +1,6 @@
 # ==============================================================================
 # ogustOS System Package Manifest
-# Standard Debian Recommends enabled (APT::Install-Recommends="true")
+# Minimal KDE Plasma Wayland + Daily Essentials + Complete Font Suite
 # ==============================================================================
 
 # --- 1. Base System, Bootloader, Kernel & Firmware ---
@@ -10,9 +10,9 @@ linux-headers-ogustos
 linux-firmware
 firmware-sof-signed
 amd64-microcode
+intel-microcode
 plymouth
 plymouth-label
-intel-microcode
 systemd
 systemd-sysv
 systemd-boot
@@ -41,7 +41,7 @@ gnupg
 apt-utils
 nala
 
-# --- 2. Curated KDE Plasma Desktop & Core Utilities (Zero Akonadi/PIM Bloat) ---
+# --- 2. Minimal KDE Plasma Wayland Desktop & Core Utilities ---
 kde-plasma-desktop
 dolphin
 dolphin-plugins
@@ -49,6 +49,7 @@ konsole
 kate
 okular
 ark
+gwenview
 kde-spectacle
 kinfocenter
 plasma-systemmonitor
@@ -82,57 +83,24 @@ qml6-module-org-kde-kirigamiaddons-tableview
 plasma-widgets-addons
 plasma-runners-addons
 
-# --- 3. Desktop Applications ---
+# --- 3. Core Desktop Applications ---
 google-chrome-stable
 mpv
 libreoffice
+libreoffice-kf6
 libreoffice-l10n-tr
 viewnior
-krita
 imagemagick
 gettext
 
-# --- 4. Compiler Toolchain, Build System, Python & Compute ---
-clang
-llvm
-lld
-gcc
-g++
-make
-ninja-build
-meson
-cmake
-mold
-ccache
+# --- 4. Essential Runtime & Python ---
 build-essential
-fakeroot
-dpkg-dev
-devscripts
-flex
-bison
-libelf-dev
-libdw-dev
-libssl-dev
-bc
-cpio
-kmod
+dkms
 python3
-python3.13
-python3.13-venv
-python3.13-dev
 python3-venv
 python3-pip
-python3-pyqt6
-python3-pil
-python3-ebooklib
-python3-pymupdf
-rocm-opencl-icd
-ocl-icd-libopencl1
-libamdhip64-dev
-rocminfo
-rocm-smi
 
-# --- 5. Graphics, Vulkan & Gaming ---
+# --- 5. Graphics, Vulkan & VA-API (64-bit + 32-bit) ---
 mesa-vulkan-drivers
 mesa-vulkan-drivers:i386
 libglx-mesa0
@@ -143,11 +111,6 @@ mesa-va-drivers
 mesa-va-drivers:i386
 vainfo
 vulkan-tools
-steam-installer
-steam-devices
-libdbusmenu-glib4:i386
-libdbusmenu-gtk3-4:i386
-libgtk2.0-0t64:i386
 
 # --- 6. Audio & Multimedia Codecs ---
 pipewire
@@ -232,22 +195,34 @@ lz4
 pigz
 unrar
 
-# --- 9. Fonts ---
+# --- 9. Comprehensive Font Suite (System, Office/PDF Metric-Exact, Unicode, Math & Coding) ---
 ttf-mscorefonts-installer
 fonts-crosextra-carlito
 fonts-crosextra-caladea
-fonts-cantarell
-fonts-cascadia-code
-fonts-dejavu
-fonts-firacode
-fonts-font-awesome
-fonts-freefont-ttf
-fonts-ibm-plex
-fonts-inconsolata
-fonts-jetbrains-mono
+fonts-liberation
+fonts-liberation2
+fonts-urw-base35
+fonts-opensymbol
+fonts-stix
+fonts-symbola
 fonts-noto-core
+fonts-noto-extra
+fonts-noto-mono
+fonts-noto-ui-core
 fonts-noto-cjk
 fonts-noto-color-emoji
+fonts-dejavu
+fonts-freefont-ttf
+fonts-cantarell
+fonts-inter
+fonts-lato
 fonts-open-sans
 fonts-roboto
 fonts-ubuntu
+fonts-cascadia-code
+fonts-firacode
+fonts-hack
+fonts-ibm-plex
+fonts-inconsolata
+fonts-jetbrains-mono
+fonts-font-awesome
