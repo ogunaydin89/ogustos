@@ -103,7 +103,11 @@ case "$cmd" in
             echo "ERROR: Invalid package name: ${PKG}"
             exit 1
         fi
-        BUILD_DIR="/var/tmp/ogustos-build/${PKG}"
+        if mountpoint -q /var/tmp/build; then
+            BUILD_DIR="/var/tmp/build/${PKG}"
+        else
+            BUILD_DIR="/var/tmp/ogustos-build/${PKG}"
+        fi
         echo "[::] Installing build dependencies for ${PKG}..."
         sudo apt-get update
         sudo apt-get build-dep -y "$PKG"
