@@ -96,9 +96,11 @@ fi
 
 if [[ -d /opt/Antigravity ]]; then
     echo "[::] Bundling Antigravity Desktop GUI (/opt/Antigravity)..."
-    rm -rf "${CHROOT_DIR}/opt/Antigravity"
     mkdir -p "${CHROOT_DIR}/opt" "${CHROOT_DIR}/usr/local/bin"
-    cp -a /opt/Antigravity "${CHROOT_DIR}/opt/Antigravity"
+    if [[ ! -x "${CHROOT_DIR}/opt/Antigravity/antigravity" ]]; then
+        rm -rf "${CHROOT_DIR}/opt/Antigravity"
+        cp -a /opt/Antigravity "${CHROOT_DIR}/opt/Antigravity"
+    fi
     chown -R 0:0 "${CHROOT_DIR}/opt/Antigravity"
     chmod 4755 "${CHROOT_DIR}/opt/Antigravity/chrome-sandbox"
     ln -sfn /opt/Antigravity/antigravity "${CHROOT_DIR}/usr/local/bin/antigravity"
@@ -114,9 +116,11 @@ fi
 
 if [[ -d /opt/hermes ]]; then
     echo "[::] Bundling Hermes Agent (/opt/hermes & /usr/local/bin/hermes*)..."
-    rm -rf "${CHROOT_DIR}/opt/hermes"
     mkdir -p "${CHROOT_DIR}/opt" "${CHROOT_DIR}/usr/local/bin"
-    cp -a /opt/hermes "${CHROOT_DIR}/opt/hermes"
+    if [[ ! -f "${CHROOT_DIR}/opt/hermes/manifest.json" ]]; then
+        rm -rf "${CHROOT_DIR}/opt/hermes"
+        cp -a /opt/hermes "${CHROOT_DIR}/opt/hermes"
+    fi
     chown -R 0:0 "${CHROOT_DIR}/opt/hermes"
     chmod -R a+rX "${CHROOT_DIR}/opt/hermes"
     for hbin in hermes hermes-acp hermes-agent; do
@@ -199,6 +203,16 @@ if [[ -n "$BLOAT_PKGS" ]]; then
     # shellcheck disable=SC2086
     apt-get purge -y $BLOAT_PKGS
 fi
+# Pre-fetch missing .deb archives in 16 parallel connections so Fastly single-stream throttling never slows the build
+mkdir -p /var/cache/apt/archives
+xargs -a /tmp/manifest.list apt-get install -y --print-uris \
+    | awk -F"'" '/^'\''https?:\/\// {print $2, $4}' \
+    | xargs -P 16 -n 2 bash -c '
+        url="$1"; fn="$2"; dst="/var/cache/apt/archives/${fn}"
+        [[ -s "$dst" ]] && exit 0
+        curl -fsSL --retry 3 "$url" -o "${dst}.tmp.$$" && mv -f "${dst}.tmp.$$" "$dst" || rm -f "${dst}.tmp.$$"
+    ' _
+
 xargs -a /tmp/manifest.list apt-get install -y
 apt-get dist-upgrade -y
 apt-get install -y --allow-downgrades viewnior/stable 2>/dev/null || apt-get install -y viewnior 2>/dev/null || true
@@ -372,7 +386,7 @@ cp -f "${CHROOT_DIR}/boot/initrd.img-${KVER}" "${ISO_DIR}/live/initrd.img"
 echo "[::] Compressing clean rootfs into ${ISO_DIR}/live/filesystem.squashfs..."
 rm -f "${ISO_DIR}/live/filesystem.squashfs"
 mksquashfs "$CHROOT_DIR" "${ISO_DIR}/live/filesystem.squashfs" \
-    -comp zstd -Xcompression-level 19 -noappend \
+    -comp zstd -Xcompression-level 9 -noappend \
     -wildcards -e "boot/vmlinuz-*" "boot/initrd.img-*"
 
 cp -f "${CHROOT_DIR}/usr/lib/systemd/boot/efi/systemd-bootx64.efi" "${ISO_DIR}/EFI/BOOT/BOOTX64.EFI"

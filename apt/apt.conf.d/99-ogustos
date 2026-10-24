@@ -5,7 +5,6 @@ APT::AutoRemove::RecommendsImportant "true";
 APT::AutoRemove::SuggestsImportant "false";
 Acquire::AllowInsecureRepositories "false";
 Acquire::AllowDowngradeToInsecureRepositories "false";
-Acquire::Queue-Mode "access";
 Acquire::Retries "3";
 Dpkg::Options {
    "--force-confdef";
